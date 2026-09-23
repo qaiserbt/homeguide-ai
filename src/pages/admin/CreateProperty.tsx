@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { getPropertyById, saveProperty } from "../../services/propertiesStore";
 import { getAgentSettings } from "../../services/agentSettings";
 import type { Property } from "../../types/property";
@@ -11,7 +11,14 @@ import { RoomsStep } from "../../components/admin/steps/RoomsStep";
 import { NarrationStep } from "../../components/admin/steps/NarrationStep";
 import { PreviewStep } from "../../components/admin/steps/PreviewStep";
 
+// Pulls in pdfjs-dist (~1.2MB) — only the agents who actually use listing
+// import should pay for that download, not everyone opening the wizard.
+const ImportListingStep = lazy(() =>
+  import("../../components/admin/steps/ImportListingStep").then((m) => ({ default: m.ImportListingStep }))
+);
+
 const STEPS = [
+  "Import Listing",
   "Property Details",
   "Property Features",
   "Upload Photos",
@@ -72,7 +79,7 @@ export function CreateProperty() {
   const update = (patch: Partial<Property>) => setDraft((prev) => ({ ...prev, ...patch }));
 
   const canAdvance = useMemo(() => {
-    if (stepIndex === 0) return draft.address.trim().length > 0 && draft.city.trim().length > 0;
+    if (stepIndex === 1) return draft.address.trim().length > 0 && draft.city.trim().length > 0;
     return true;
   }, [stepIndex, draft.address, draft.city]);
 
@@ -129,12 +136,23 @@ export function CreateProperty() {
       </ol>
 
       <div className="rounded-2xl bg-white p-5 shadow-card sm:p-7">
-        {stepIndex === 0 && <PropertyDetailsStep draft={draft} update={update} />}
-        {stepIndex === 1 && <PropertyFeaturesStep draft={draft} update={update} />}
-        {stepIndex === 2 && <PhotosStep draft={draft} update={update} />}
-        {stepIndex === 3 && <RoomsStep draft={draft} update={update} />}
-        {stepIndex === 4 && <NarrationStep draft={draft} update={update} />}
-        {stepIndex === 5 && <PreviewStep draft={draft} onPublish={() => persist("Active")} onSaveDraft={() => persist("Draft")} />}
+        {stepIndex === 0 && (
+          <Suspense
+            fallback={
+              <div className="flex items-center gap-2 py-10 text-sm text-text-secondary">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading PDF import…
+              </div>
+            }
+          >
+            <ImportListingStep update={update} />
+          </Suspense>
+        )}
+        {stepIndex === 1 && <PropertyDetailsStep draft={draft} update={update} />}
+        {stepIndex === 2 && <PropertyFeaturesStep draft={draft} update={update} />}
+        {stepIndex === 3 && <PhotosStep draft={draft} update={update} />}
+        {stepIndex === 4 && <RoomsStep draft={draft} update={update} />}
+        {stepIndex === 5 && <NarrationStep draft={draft} update={update} />}
+        {stepIndex === 6 && <PreviewStep draft={draft} onPublish={() => persist("Active")} onSaveDraft={() => persist("Draft")} />}
       </div>
 
       {stepIndex < STEPS.length - 1 && (

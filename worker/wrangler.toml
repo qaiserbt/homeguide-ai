@@ -9,3 +9,9 @@ bucket_name = "homeguide-ai-photos"
 [vars]
 ALLOWED_ORIGINS = "https://qaiserbt.github.io,http://localhost:5173,http://localhost:5183,http://localhost:5184,http://localhost:5185"
 PUBLIC_BUCKET_URL = "https://pub-de89a7ecb70d4694b1ccabeb30fe706c.r2.dev"
+# Any OpenRouter model slug works — change here and redeploy to swap it.
+# Matches the primary model already proven working in the QB CRM project.
+OPENROUTER_MODEL = "google/gemini-3.8-flash"
+
+# OPENROUTER_API_KEY is a secret, not a var — set it with:
+#   npx wrangler secret put OPENROUTER_API_KEY
