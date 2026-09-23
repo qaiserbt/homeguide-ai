@@ -1,0 +1,11 @@
+name = "homeguide-ai-uploads"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "homeguide-ai-photos"
+
+[vars]
+ALLOWED_ORIGINS = "https://qaiserbt.github.io,http://localhost:5173,http://localhost:5183,http://localhost:5184,http://localhost:5185"
+PUBLIC_BUCKET_URL = "https://pub-de89a7ecb70d4694b1ccabeb30fe706c.r2.dev"
