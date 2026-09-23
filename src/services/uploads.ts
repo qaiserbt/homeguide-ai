@@ -27,3 +27,41 @@ export async function uploadPhoto(file: File): Promise<string> {
   const data = (await response.json()) as { url: string };
   return data.url;
 }
+
+export interface BulkUploadResult {
+  file: File;
+  url: string | null;
+  error: string | null;
+}
+
+/**
+ * Uploads many files at once with limited concurrency (so 40 files don't
+ * fire 40 simultaneous requests) and reports progress as each one settles.
+ */
+export async function uploadPhotos(
+  files: File[],
+  onProgress: (completed: number, total: number) => void,
+  concurrency = 4
+): Promise<BulkUploadResult[]> {
+  const results: BulkUploadResult[] = new Array(files.length);
+  let nextIndex = 0;
+  let completed = 0;
+
+  async function worker() {
+    while (nextIndex < files.length) {
+      const i = nextIndex++;
+      const file = files[i];
+      try {
+        const url = await uploadPhoto(file);
+        results[i] = { file, url, error: null };
+      } catch (err) {
+        results[i] = { file, url: null, error: err instanceof Error ? err.message : "Upload failed" };
+      }
+      completed++;
+      onProgress(completed, files.length);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, files.length) }, worker));
+  return results;
+}
