@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Upload, X, Loader2, AlertCircle } from "lucide-react";
+import { Upload, X, Loader2, AlertCircle, Check } from "lucide-react";
 import { SmartImage } from "../shared/SmartImage";
 import { uploadPhoto } from "../../services/uploads";
 
@@ -8,14 +8,18 @@ interface ImageUploaderProps {
   value?: string;
   onChange: (url: string | undefined) => void;
   className?: string;
+  /** Already-uploaded photos (e.g. this property's gallery) the user can pick instead of uploading again. */
+  libraryPhotos?: string[];
 }
 
 /**
  * Uploads a photo to the Cloudflare Worker in /worker, which stores it in
  * R2 and returns a public URL. That URL is what gets passed to onChange
- * and stored on the property/room.
+ * and stored on the property/room. When `libraryPhotos` is passed, the
+ * user can also reuse a photo already uploaded elsewhere on this property
+ * instead of uploading the same file twice.
  */
-export function ImageUploader({ label, value, onChange, className = "" }: ImageUploaderProps) {
+export function ImageUploader({ label, value, onChange, className = "", libraryPhotos = [] }: ImageUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +38,8 @@ export function ImageUploader({ label, value, onChange, className = "" }: ImageU
       if (inputRef.current) inputRef.current.value = "";
     }
   }
+
+  const pickablePhotos = libraryPhotos.filter((url) => url && url !== value);
 
   return (
     <div className={className}>
@@ -73,6 +79,29 @@ export function ImageUploader({ label, value, onChange, className = "" }: ImageU
           {error}
         </p>
       )}
+
+      {pickablePhotos.length > 0 && (
+        <div className="mt-2">
+          <span className="mb-1 block text-[11px] text-text-secondary">Or use an uploaded photo:</span>
+          <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-1">
+            {pickablePhotos.map((url) => (
+              <button
+                key={url}
+                type="button"
+                onClick={() => onChange(url)}
+                aria-label="Use this photo"
+                className="group relative h-12 w-16 shrink-0 overflow-hidden rounded-md border border-navy/10 hover:border-gold"
+              >
+                <SmartImage src={url} alt="" className="h-full w-full" />
+                <span className="absolute inset-0 hidden items-center justify-center bg-navy/50 group-hover:flex">
+                  <Check className="h-3.5 w-3.5 text-white" />
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <input
         ref={inputRef}
         type="file"

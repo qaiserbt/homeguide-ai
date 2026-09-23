@@ -43,6 +43,14 @@ export function RoomsStep({ draft, update }: StepProps) {
 
   const selectedRoom = draft.rooms.find((r) => r.id === selectedId);
 
+  const libraryPhotos = Array.from(
+    new Set(
+      [draft.exteriorImage, ...draft.gallery, ...draft.rooms.map((r) => r.image)].filter(
+        (url): url is string => Boolean(url)
+      )
+    )
+  );
+
   function patchRoom(id: string, patch: Partial<Room>) {
     update({ rooms: draft.rooms.map((r) => (r.id === id ? { ...r, ...patch } : r)) });
   }
@@ -139,6 +147,7 @@ export function RoomsStep({ draft, update }: StepProps) {
               value={selectedRoom.image || undefined}
               onChange={(url) => patchRoom(selectedRoom.id, { image: url ?? "" })}
               className="max-w-sm"
+              libraryPhotos={libraryPhotos}
             />
 
             <div>

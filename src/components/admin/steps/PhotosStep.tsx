@@ -25,6 +25,7 @@ export function PhotosStep({ draft, update }: StepProps) {
         value={draft.exteriorImage || undefined}
         onChange={(url) => update({ exteriorImage: url ?? "" })}
         className="max-w-sm"
+        libraryPhotos={draft.gallery}
       />
 
       <div>
