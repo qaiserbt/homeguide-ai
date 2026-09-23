@@ -45,6 +45,18 @@ export default {
       return new Response(null, { status: 204, headers: cors });
     }
 
+    if (url.pathname === "/" && request.method === "GET") {
+      return json(
+        {
+          service: "homeguide-ai-uploads",
+          status: "ok",
+          usage: "POST multipart/form-data with a 'file' field to /upload",
+        },
+        200,
+        cors
+      );
+    }
+
     if (url.pathname !== "/upload" || request.method !== "POST") {
       return json({ error: "Not found" }, 404, cors);
     }
