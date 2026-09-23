@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, LayoutPanelLeft, ZoomIn, ZoomOut } from "lucide-react";
 import { useTourContext } from "../hooks/useTourContext";
+import { resolveAssetPath } from "../utils/assetPath";
 
 export function FloorPlan() {
   const { property } = useTourContext();
@@ -45,7 +46,7 @@ export function FloorPlan() {
       <div className="flex flex-1 items-center justify-center overflow-auto p-6">
         {property.floorPlanImage ? (
           <img
-            src={property.floorPlanImage}
+            src={resolveAssetPath(property.floorPlanImage)}
             alt={`Floor plan for ${property.address}`}
             style={{ transform: `scale(${zoom})` }}
             className="max-w-full transition-transform duration-200"

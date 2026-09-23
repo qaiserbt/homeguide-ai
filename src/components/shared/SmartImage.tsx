@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ImageOff } from "lucide-react";
 import { getRoomVisual } from "../../utils/roomVisuals";
+import { resolveAssetPath } from "../../utils/assetPath";
 import type { RoomType } from "../../types/property";
 
 interface SmartImageProps {
@@ -64,7 +65,7 @@ export function SmartImage({
         <div className="absolute inset-0 animate-pulse-soft bg-gradient-to-br from-navy/10 to-navy/5" />
       )}
       <img
-        src={src}
+        src={resolveAssetPath(src)}
         alt={alt}
         loading={priority ? "eager" : "lazy"}
         onLoad={() => setLoaded(true)}

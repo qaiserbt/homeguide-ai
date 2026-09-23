@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AvatarSVG } from "./AvatarSVG";
 import { avatarImagePaths } from "../../data/avatarAssets";
+import { resolveAssetPath } from "../../utils/assetPath";
 import type { AvatarState } from "../../types/avatar";
 
 interface AvatarRendererProps {
@@ -26,7 +27,7 @@ export function AvatarRenderer({ state, className = "" }: AvatarRendererProps) {
   return (
     <img
       key={src}
-      src={src}
+      src={resolveAssetPath(src)}
       alt="HomeGuide AI avatar"
       className={`${className} object-contain`}
       onError={() => setFailedSrc(src)}
