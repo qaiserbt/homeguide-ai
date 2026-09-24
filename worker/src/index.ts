@@ -116,15 +116,55 @@ interface ExtractedListing {
   features: string[];
 }
 
-function parseModelJson(raw: string): ExtractedListing | null {
+function parseModelJson<T>(raw: string): T | null {
   const cleaned = raw.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
   try {
     const parsed = JSON.parse(cleaned);
-    if (parsed && typeof parsed === "object") return parsed as ExtractedListing;
+    if (parsed && typeof parsed === "object") return parsed as T;
     return null;
   } catch {
     return null;
   }
+}
+
+interface OpenRouterMessage {
+  role: "system" | "user";
+  content: string | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }>;
+}
+
+async function callOpenRouter(env: Env, messages: OpenRouterMessage[]): Promise<{ content: string } | { error: string; status: number }> {
+  let response: Response;
+  try {
+    response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://qaiserbt.github.io/homeguide-ai/",
+        "X-Title": "HomeGuide AI",
+      },
+      body: JSON.stringify({
+        model: env.OPENROUTER_MODEL,
+        response_format: { type: "json_object" },
+        temperature: 0,
+        messages,
+      }),
+    });
+  } catch {
+    return { error: "Couldn't reach the AI provider. Try again.", status: 502 };
+  }
+
+  if (!response.ok) {
+    return { error: `AI provider error (${response.status})`, status: 502 };
+  }
+
+  const completion = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+  const content = completion.choices?.[0]?.message?.content;
+  if (!content) {
+    return { error: "AI provider returned an empty response", status: 502 };
+  }
+
+  return { content };
 }
 
 async function handleExtractListing(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
@@ -145,48 +185,71 @@ async function handleExtractListing(request: Request, env: Env, cors: HeadersIni
 
   const text = body.text.slice(0, MAX_LISTING_TEXT_CHARS);
 
-  let response: Response;
-  try {
-    response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://qaiserbt.github.io/homeguide-ai/",
-        "X-Title": "HomeGuide AI listing import",
-      },
-      body: JSON.stringify({
-        model: env.OPENROUTER_MODEL,
-        response_format: { type: "json_object" },
-        temperature: 0,
-        messages: [
-          { role: "system", content: EXTRACTION_SYSTEM_PROMPT },
-          { role: "user", content: text },
-        ],
-      }),
-    });
-  } catch {
-    return json({ error: "Couldn't reach the AI provider. Try again." }, 502, cors);
-  }
+  const result = await callOpenRouter(env, [
+    { role: "system", content: EXTRACTION_SYSTEM_PROMPT },
+    { role: "user", content: text },
+  ]);
+  if ("error" in result) return json({ error: result.error }, result.status, cors);
 
-  if (!response.ok) {
-    return json({ error: `AI provider error (${response.status})` }, 502, cors);
-  }
-
-  const completion = (await response.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  const content = completion.choices?.[0]?.message?.content;
-  if (!content) {
-    return json({ error: "AI provider returned an empty response" }, 502, cors);
-  }
-
-  const extracted = parseModelJson(content);
+  const extracted = parseModelJson<ExtractedListing>(result.content);
   if (!extracted) {
     return json({ error: "Couldn't parse the AI's response" }, 502, cors);
   }
 
   return json({ data: extracted }, 200, cors);
+}
+
+const ROOM_PHOTO_SYSTEM_PROMPT = `You are a real estate photography analyst helping an agent write listing copy.
+
+Look at the provided room photo and describe ONLY what is visibly, clearly present in the image. Do not invent specific brand names, exact materials, or measurements you cannot actually see — if you're not sure a countertop is quartz, just don't mention the material. Do not assume facts about the rest of the home from one photo.
+
+Respond with ONLY a single JSON object, no markdown fences, no commentary, matching exactly this shape:
+{
+  "description": string,
+  "features": string[]
+}
+
+"description" is a short, factual 1-2 sentence visual description of the room. "features" is a list of 3-8 short phrases for notable things clearly visible in the photo (e.g. "Hardwood Flooring", "Large Windows", "Built-in Shelving", "Fireplace", "Neutral Décor", "Area Rug") — only include what you can actually see.`;
+
+interface RoomPhotoAnalysis {
+  description: string;
+  features: string[];
+}
+
+async function handleAnalyzeRoomPhoto(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
+  if (!env.OPENROUTER_API_KEY) {
+    return json({ error: "Photo analysis isn't configured yet (missing API key)." }, 503, cors);
+  }
+
+  let body: { imageUrl?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Expected JSON body with an 'imageUrl' field" }, 400, cors);
+  }
+
+  if (typeof body.imageUrl !== "string" || !body.imageUrl.trim()) {
+    return json({ error: "Missing 'imageUrl' field" }, 400, cors);
+  }
+
+  const result = await callOpenRouter(env, [
+    { role: "system", content: ROOM_PHOTO_SYSTEM_PROMPT },
+    {
+      role: "user",
+      content: [
+        { type: "text", text: "Analyze this room photo." },
+        { type: "image_url", image_url: { url: body.imageUrl } },
+      ],
+    },
+  ]);
+  if ("error" in result) return json({ error: result.error }, result.status, cors);
+
+  const parsed = parseModelJson<RoomPhotoAnalysis>(result.content);
+  if (!parsed || !Array.isArray(parsed.features)) {
+    return json({ error: "Couldn't parse the AI's response" }, 502, cors);
+  }
+
+  return json({ data: parsed }, 200, cors);
 }
 
 export default {
@@ -204,7 +267,8 @@ export default {
         {
           service: "homeguide-ai-uploads",
           status: "ok",
-          usage: "POST multipart/form-data with a 'file' field to /upload, or JSON { text } to /extract-listing",
+          usage:
+            "POST multipart/form-data with a 'file' field to /upload, JSON { text } to /extract-listing, or JSON { imageUrl } to /analyze-room-photo",
         },
         200,
         cors
@@ -224,6 +288,10 @@ export default {
 
     if (url.pathname === "/extract-listing" && request.method === "POST") {
       return handleExtractListing(request, env, cors);
+    }
+
+    if (url.pathname === "/analyze-room-photo" && request.method === "POST") {
+      return handleAnalyzeRoomPhoto(request, env, cors);
     }
 
     return json({ error: "Not found" }, 404, cors);

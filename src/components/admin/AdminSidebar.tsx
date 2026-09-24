@@ -9,6 +9,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Logo } from "../shared/Logo";
+import { publicTourUrl } from "../../utils/publicTourUrl";
 
 const links = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -45,7 +46,7 @@ export function AdminSidebar() {
       </nav>
 
       <a
-        href="/tour/236-pringle"
+        href={publicTourUrl("236-pringle")}
         target="_blank"
         rel="noreferrer"
         className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-gold-dark hover:bg-gold/10"

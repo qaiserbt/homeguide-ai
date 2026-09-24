@@ -4,6 +4,7 @@ import { Pencil, Eye, Copy, Trash2, PlusCircle } from "lucide-react";
 import { getAllProperties, deleteProperty, duplicateProperty } from "../../services/propertiesStore";
 import { SmartImage } from "../../components/shared/SmartImage";
 import { formatCurrency } from "../../utils/format";
+import { publicTourUrl } from "../../utils/publicTourUrl";
 
 export function AdminProperties() {
   const [properties, setProperties] = useState(() => getAllProperties());
@@ -95,7 +96,7 @@ export function AdminProperties() {
                         <Pencil className="h-4 w-4" />
                       </Link>
                       <a
-                        href={`/tour/${property.slug}`}
+                        href={publicTourUrl(property.slug)}
                         target="_blank"
                         rel="noreferrer"
                         aria-label={`Preview ${property.address}`}
