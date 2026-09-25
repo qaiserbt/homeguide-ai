@@ -15,3 +15,10 @@ OPENROUTER_MODEL = "google/gemini-3.8-flash"
 
 # OPENROUTER_API_KEY is a secret, not a var — set it with:
 #   npx wrangler secret put OPENROUTER_API_KEY
+
+# ElevenLabs premade voice ID — "Adam", a warm professional male voice.
+# Change here and redeploy to swap it (ElevenLabs Voice Library has more).
+ELEVENLABS_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
+
+# ELEVENLABS_API_KEY is a secret, not a var — set it with:
+#   npx wrangler secret put ELEVENLABS_API_KEY

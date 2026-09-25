@@ -1,145 +1,108 @@
 /**
- * Text-to-speech service. MVP implementation uses the browser
- * SpeechSynthesis API, with the best-sounding available system voice
- * picked automatically. Swap the internals of this file for a premium
- * voice API (e.g. ElevenLabs) later — callers only depend on speak/pause/
- * resume/stop/onEnd, never on SpeechSynthesis directly.
+ * Text-to-speech service. Uses a premium ElevenLabs voice via a Cloudflare
+ * Worker endpoint (/synthesize-speech), which caches generated audio in R2
+ * keyed by text so repeat plays never re-bill ElevenLabs. Callers only
+ * depend on speak/pause/resume/stop/onEnd, never on the underlying
+ * mechanism — this file is the one place that would change again if the
+ * voice provider changes.
  */
 
 type EndListener = () => void;
 
+const UPLOAD_ORIGIN = (
+  import.meta.env.VITE_UPLOAD_API_URL ?? "https://homeguide-ai-uploads.fragrant-cake-acc5.workers.dev/upload"
+).replace(/\/upload$/, "");
+
 function supported(): boolean {
-  return typeof window !== "undefined" && "speechSynthesis" in window;
+  return typeof window !== "undefined" && typeof Audio !== "undefined";
 }
 
 export function isSpeechSupported(): boolean {
   return supported();
 }
 
-// The Web Speech API fires `onend` both when an utterance finishes naturally
-// AND when it's cancelled (e.g. by calling speak() again or stop()), with no
-// reliable way to tell the two apart from the event itself. We track whether
-// the in-flight cancel was intentional so callers only hear about genuine
-// completions — needed for features like auto-advancing to the next room.
-let suppressNextEnd = false;
+let currentAudio: HTMLAudioElement | null = null;
 
-// Voice resolution is async (see resolveVoice), so a speak() call can still
-// be waiting on it when a newer speak()/stop() supersedes it. Each speak()
-// captures the current token and checks it's still current before actually
-// starting — otherwise a stale call could start speaking after a stop().
+// Fetching + resolving the audio URL is async, so a stop() or a newer
+// speak() call can land while an earlier one is still in flight. Each
+// speak() call checks its token is still current before actually starting
+// playback, so a superseded call never starts talking after the fact.
 let speakToken = 0;
 
-// Chrome (and others) often return an empty voice list on the very first
-// call — the real list only arrives once, asynchronously, via the
-// `voiceschanged` event. Voices are also the same across every utterance,
-// so we resolve the choice once and reuse it.
-let cachedVoice: SpeechSynthesisVoice | null | undefined;
+// Same text is requested repeatedly (replays, revisits) — avoid hitting the
+// Worker/R2 again for a URL we already resolved this session.
+const audioUrlCache = new Map<string, string>();
 
-function getVoicesAsync(): Promise<SpeechSynthesisVoice[]> {
-  return new Promise((resolve) => {
-    const existing = window.speechSynthesis.getVoices();
-    if (existing.length > 0) {
-      resolve(existing);
-      return;
-    }
-    const onVoicesChanged = () => {
-      window.speechSynthesis.removeEventListener("voiceschanged", onVoicesChanged);
-      resolve(window.speechSynthesis.getVoices());
-    };
-    window.speechSynthesis.addEventListener("voiceschanged", onVoicesChanged);
-    // Some browsers never fire voiceschanged if voices were already ready —
-    // don't hang forever waiting.
-    setTimeout(() => resolve(window.speechSynthesis.getVoices()), 1000);
+async function resolveAudioUrl(text: string): Promise<string> {
+  const cached = audioUrlCache.get(text);
+  if (cached) return cached;
+
+  const response = await fetch(`${UPLOAD_ORIGIN}/synthesize-speech`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
   });
-}
 
-// Ranked by how natural they sound, not just availability. Chrome's "Google"
-// network voices and modern OS "Natural"/"Online (Natural)" voices sound
-// meaningfully less robotic than the classic default system voices.
-const PREFERRED_VOICE_NAMES = [
-  "Google US English",
-  "Google UK English Female",
-  "Microsoft Ava Online (Natural) - English (United States)",
-  "Microsoft Andrew Online (Natural) - English (United States)",
-  "Microsoft Aria Online (Natural) - English (United States)",
-  "Microsoft Guy Online (Natural) - English (United States)",
-  "Samantha",
-];
-
-function pickBestVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
-  if (voices.length === 0) return null;
-
-  for (const name of PREFERRED_VOICE_NAMES) {
-    const exact = voices.find((v) => v.name === name);
-    if (exact) return exact;
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? `Speech synthesis failed (${response.status})`);
   }
 
-  const naturalSounding = voices.find((v) => /natural|neural|online/i.test(v.name) && v.lang.startsWith("en"));
-  if (naturalSounding) return naturalSounding;
-
-  return voices.find((v) => v.lang === "en-US") ?? voices.find((v) => v.lang.startsWith("en")) ?? voices[0];
-}
-
-async function resolveVoice(): Promise<SpeechSynthesisVoice | null> {
-  if (cachedVoice !== undefined) return cachedVoice;
-  const voices = await getVoicesAsync();
-  cachedVoice = pickBestVoice(voices);
-  return cachedVoice;
+  const body = (await response.json()) as { url: string };
+  audioUrlCache.set(text, body.url);
+  return body.url;
 }
 
 export function speak(text: string, onEnd?: EndListener): void {
-  if (!supported()) return;
+  if (!supported() || !text.trim()) return;
 
-  // Cancel whatever's in flight immediately — don't let async voice
-  // resolution delay this, or a stop() racing a first-ever speak() call
-  // could be silently undone once that call's utterance finally starts.
-  suppressNextEnd = true;
-  window.speechSynthesis.cancel();
   const myToken = ++speakToken;
 
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.96;
-  utterance.pitch = 1.02;
-  utterance.volume = 1;
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
 
-  utterance.onstart = () => {
-    suppressNextEnd = false;
-  };
-  utterance.onend = () => {
-    if (suppressNextEnd) return;
-    onEnd?.();
-  };
+  resolveAudioUrl(text)
+    .then((url) => {
+      if (myToken !== speakToken) return; // superseded while resolving
 
-  resolveVoice().then((voice) => {
-    if (myToken !== speakToken) return; // superseded by a newer speak()/stop() while resolving
-    if (voice) utterance.voice = voice;
-    window.speechSynthesis.speak(utterance);
-  });
+      const audio = new Audio(url);
+      audio.onended = () => {
+        if (myToken === speakToken) onEnd?.();
+      };
+      currentAudio = audio;
+      // Autoplay can be blocked without a recent user gesture (e.g. the
+      // auto-advance chain calling this from a timer) — fail silently
+      // rather than throw; the UI's play/pause state just won't progress.
+      audio.play().catch(() => {});
+    })
+    .catch(() => {
+      // Network/API failure — degrade silently, matching the rest of this
+      // app's pattern of never blocking the tour on a backend hiccup.
+    });
 }
 
 export function pause(): void {
-  if (!supported()) return;
-  if (window.speechSynthesis.speaking) window.speechSynthesis.pause();
+  currentAudio?.pause();
 }
 
 export function resume(): void {
-  if (!supported()) return;
-  window.speechSynthesis.resume();
+  currentAudio?.play().catch(() => {});
 }
 
 export function stop(): void {
-  if (!supported()) return;
-  suppressNextEnd = true;
   speakToken++;
-  window.speechSynthesis.cancel();
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
 }
 
 export function isSpeaking(): boolean {
-  if (!supported()) return false;
-  return window.speechSynthesis.speaking;
+  return Boolean(currentAudio && !currentAudio.paused && !currentAudio.ended);
 }
 
 export function isPaused(): boolean {
-  if (!supported()) return false;
-  return window.speechSynthesis.paused;
+  return Boolean(currentAudio && currentAudio.paused && !currentAudio.ended);
 }

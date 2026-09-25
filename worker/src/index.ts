@@ -4,6 +4,8 @@ export interface Env {
   PUBLIC_BUCKET_URL: string;
   OPENROUTER_MODEL: string;
   OPENROUTER_API_KEY: string;
+  ELEVENLABS_VOICE_ID: string;
+  ELEVENLABS_API_KEY: string;
 }
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10MB
@@ -252,6 +254,74 @@ async function handleAnalyzeRoomPhoto(request: Request, env: Env, cors: HeadersI
   return json({ data: parsed }, 200, cors);
 }
 
+const MAX_SPEECH_TEXT_CHARS = 2_500;
+
+async function sha256Hex(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function handleSynthesizeSpeech(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
+  if (!env.ELEVENLABS_API_KEY) {
+    return json({ error: "Voice synthesis isn't configured yet (missing API key)." }, 503, cors);
+  }
+
+  let body: { text?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Expected JSON body with a 'text' field" }, 400, cors);
+  }
+
+  if (typeof body.text !== "string" || !body.text.trim()) {
+    return json({ error: "Missing 'text' field" }, 400, cors);
+  }
+
+  const text = body.text.trim().slice(0, MAX_SPEECH_TEXT_CHARS);
+
+  // Narration text rarely changes, so cache the generated audio in R2 keyed
+  // by a hash of (voice, text) — repeat plays of the same line, by the same
+  // visitor or a different one, are served straight from R2 and never touch
+  // ElevenLabs again (no credits spent past the first synthesis).
+  const cacheKey = `audio/${await sha256Hex(`${env.ELEVENLABS_VOICE_ID}:${text}`)}.mp3`;
+
+  const existing = await env.PHOTOS.head(cacheKey);
+  if (existing) {
+    return json({ url: `${env.PUBLIC_BUCKET_URL}/${cacheKey}`, cached: true }, 200, cors);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${env.ELEVENLABS_VOICE_ID}`, {
+      method: "POST",
+      headers: {
+        "xi-api-key": env.ELEVENLABS_API_KEY,
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
+      },
+      body: JSON.stringify({
+        text,
+        model_id: "eleven_turbo_v2_5",
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+      }),
+    });
+  } catch {
+    return json({ error: "Couldn't reach the voice provider. Try again." }, 502, cors);
+  }
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    return json({ error: `Voice provider error (${response.status})`, detail: detail.slice(0, 300) }, 502, cors);
+  }
+
+  const audio = await response.arrayBuffer();
+  await env.PHOTOS.put(cacheKey, audio, { httpMetadata: { contentType: "audio/mpeg" } });
+
+  return json({ url: `${env.PUBLIC_BUCKET_URL}/${cacheKey}`, cached: false }, 200, cors);
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const origin = request.headers.get("Origin");
@@ -268,7 +338,7 @@ export default {
           service: "homeguide-ai-uploads",
           status: "ok",
           usage:
-            "POST multipart/form-data with a 'file' field to /upload, JSON { text } to /extract-listing, or JSON { imageUrl } to /analyze-room-photo",
+            "POST multipart/form-data with a 'file' field to /upload, JSON { text } to /extract-listing or /synthesize-speech, or JSON { imageUrl } to /analyze-room-photo",
         },
         200,
         cors
@@ -292,6 +362,10 @@ export default {
 
     if (url.pathname === "/analyze-room-photo" && request.method === "POST") {
       return handleAnalyzeRoomPhoto(request, env, cors);
+    }
+
+    if (url.pathname === "/synthesize-speech" && request.method === "POST") {
+      return handleSynthesizeSpeech(request, env, cors);
     }
 
     return json({ error: "Not found" }, 404, cors);
