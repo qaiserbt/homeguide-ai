@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Plus, Trash2, Sparkles, X } from "lucide-react";
+import { Plus, Trash2, Sparkles, X, ScanEye, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import type { Property, Room, RoomType } from "../../../types/property";
 import { inputClass, labelClass, textareaClass } from "../formStyles";
 import { ImageUploader } from "../ImageUploader";
 import { generateRoomNarration } from "../../../services/ai";
+import { analyzeRoomPhoto } from "../../../services/roomPhotoAnalysis";
 
 interface StepProps {
   draft: Property;
@@ -40,6 +41,16 @@ function newRoom(order: number): Room {
 export function RoomsStep({ draft, update }: StepProps) {
   const [selectedId, setSelectedId] = useState<string | undefined>(draft.rooms[0]?.id);
   const [featureInput, setFeatureInput] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [analyzeNote, setAnalyzeNote] = useState<string | null>(null);
+  const [analyzedForId, setAnalyzedForId] = useState<string | undefined>(selectedId);
+
+  if (selectedId !== analyzedForId) {
+    setAnalyzedForId(selectedId);
+    setAnalyzeError(null);
+    setAnalyzeNote(null);
+  }
 
   const selectedRoom = draft.rooms.find((r) => r.id === selectedId);
 
@@ -76,6 +87,28 @@ export function RoomsStep({ draft, update }: StepProps) {
   function removeFeature(index: number) {
     if (!selectedRoom) return;
     patchRoom(selectedRoom.id, { features: selectedRoom.features.filter((_, i) => i !== index) });
+  }
+
+  async function handleAnalyzePhoto() {
+    if (!selectedRoom || !selectedRoom.image) return;
+    setAnalyzing(true);
+    setAnalyzeError(null);
+    setAnalyzeNote(null);
+    try {
+      const result = await analyzeRoomPhoto(selectedRoom.image);
+      const existingTitles = new Set(selectedRoom.features.map((f) => f.title.toLowerCase()));
+      const newFeatures = result.features.filter((title) => !existingTitles.has(title.toLowerCase()));
+
+      patchRoom(selectedRoom.id, {
+        description: selectedRoom.description.trim() ? selectedRoom.description : result.description,
+        features: [...selectedRoom.features, ...newFeatures.map((title) => ({ title }))],
+      });
+      setAnalyzeNote(`Added ${newFeatures.length} feature${newFeatures.length === 1 ? "" : "s"} from the photo.`);
+    } catch (err) {
+      setAnalyzeError(err instanceof Error ? err.message : "Couldn't analyze that photo.");
+    } finally {
+      setAnalyzing(false);
+    }
   }
 
   return (
@@ -142,13 +175,35 @@ export function RoomsStep({ draft, update }: StepProps) {
               </button>
             </div>
 
-            <ImageUploader
-              label="Room Photo"
-              value={selectedRoom.image || undefined}
-              onChange={(url) => patchRoom(selectedRoom.id, { image: url ?? "" })}
-              className="max-w-sm"
-              libraryPhotos={libraryPhotos}
-            />
+            <div className="max-w-sm">
+              <ImageUploader
+                label="Room Photo"
+                value={selectedRoom.image || undefined}
+                onChange={(url) => patchRoom(selectedRoom.id, { image: url ?? "" })}
+                libraryPhotos={libraryPhotos}
+              />
+              {selectedRoom.image && (
+                <button
+                  type="button"
+                  onClick={handleAnalyzePhoto}
+                  disabled={analyzing}
+                  className="mt-2 flex items-center gap-1.5 rounded-full bg-gold/15 px-3 py-1.5 text-xs font-semibold text-gold-dark hover:bg-gold/25 disabled:opacity-60"
+                >
+                  {analyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanEye className="h-3.5 w-3.5" />}
+                  {analyzing ? "Analyzing photo…" : "Detect Features from Photo"}
+                </button>
+              )}
+              {analyzeNote && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-navy">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-gold-dark" /> {analyzeNote}
+                </p>
+              )}
+              {analyzeError && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-red-600">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {analyzeError}
+                </p>
+              )}
+            </div>
 
             <div>
               <label className={labelClass}>Description</label>
