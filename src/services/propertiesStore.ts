@@ -101,3 +101,24 @@ export function duplicateProperty(id: string): Property | undefined {
 export function isCustomProperty(id: string): boolean {
   return readCustom().some((p) => p.id === id);
 }
+
+/** Was this slug a built-in seed property that got deleted in this browser? */
+export function isDeletedSeedSlug(slug: string): boolean {
+  const seedIds = readDeletedSeedIds();
+  if (seedIds.length === 0) return false;
+  return seedProperties.some((p) => p.slug === slug && seedIds.includes(p.id));
+}
+
+/** Undoes a deleteProperty() call on a seed property, restoring it to its original state. */
+export function restoreSeedBySlug(slug: string): void {
+  const seed = seedProperties.find((p) => p.slug === slug);
+  if (!seed) return;
+  const deleted = readDeletedSeedIds().filter((id) => id !== seed.id);
+  try {
+    localStorage.setItem(DELETED_SEED_KEY, JSON.stringify(deleted));
+  } catch {
+    /* ignore */
+  }
+  // Drop any stale custom copy too, so the original seed data reappears untouched.
+  writeCustom(readCustom().filter((p) => p.id !== seed.id));
+}
