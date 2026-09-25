@@ -8,7 +8,6 @@ import { SmartImage } from "../components/shared/SmartImage";
 import { RoomFeatures } from "../components/tour/RoomFeatures";
 import { RoomSelector } from "../components/tour/RoomSelector";
 import { AudioControls } from "../components/tour/AudioControls";
-import { TourProgress } from "../components/tour/TourProgress";
 import type { AvatarState } from "../types/avatar";
 
 export function RoomTour() {
@@ -102,8 +101,6 @@ export function RoomTour() {
 
         <div className="space-y-5 px-4 pt-5 sm:px-6 lg:min-w-0 lg:px-0 lg:pt-0">
           <RoomFeatures features={room.features} />
-
-          <TourProgress viewedCount={tourProgress.viewedCount} totalRooms={tourProgress.totalRooms} />
 
           <RoomSelector
             rooms={rooms}
