@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as speechService from "../services/speech";
-import { chunkWordsIntoCaptions, findActiveChunkIndex, type CaptionChunk } from "../utils/captionChunks";
+import { getProgressiveCaption, type WordTiming } from "../utils/wordTiming";
 
 /**
  * Drives play/pause/replay state for a single block of narration text,
@@ -9,9 +9,9 @@ import { chunkWordsIntoCaptions, findActiveChunkIndex, type CaptionChunk } from 
  * fires only when the narration finishes on its own (not when paused or
  * interrupted) — useful for auto-advancing to the next room.
  *
- * `caption` tracks the currently-spoken phrase, synced to real playback
- * position via the word-level timings ElevenLabs returns — not just the
- * whole narration text shown for the full duration.
+ * `caption` builds up word-by-word as each one is actually spoken (using
+ * ElevenLabs' word-level timings), staying within the current sentence
+ * until it finishes, then clearing and starting the next one.
  */
 export function useNarration(text: string, onNaturalEnd?: () => void) {
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -19,7 +19,7 @@ export function useNarration(text: string, onNaturalEnd?: () => void) {
   const [caption, setCaption] = useState("");
   const textRef = useRef(text);
   const onNaturalEndRef = useRef(onNaturalEnd);
-  const chunksRef = useRef<CaptionChunk[]>([]);
+  const wordsRef = useRef<WordTiming[]>([]);
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -36,10 +36,9 @@ export function useNarration(text: string, onNaturalEnd?: () => void) {
   const runCaptionLoop = useCallback(() => {
     stopCaptionLoop();
     const tick = () => {
-      const chunks = chunksRef.current;
-      if (chunks.length > 0) {
-        const idx = findActiveChunkIndex(chunks, speechService.getCurrentTime());
-        setCaption(chunks[idx]?.text ?? "");
+      const words = wordsRef.current;
+      if (words.length > 0) {
+        setCaption(getProgressiveCaption(words, speechService.getCurrentTime()));
       }
       rafRef.current = requestAnimationFrame(tick);
     };
@@ -55,7 +54,7 @@ export function useNarration(text: string, onNaturalEnd?: () => void) {
   }, [text, stopCaptionLoop]);
 
   const play = useCallback(() => {
-    chunksRef.current = [];
+    wordsRef.current = [];
     setCaption("");
     speechService.speak(
       textRef.current,
@@ -67,7 +66,7 @@ export function useNarration(text: string, onNaturalEnd?: () => void) {
         onNaturalEndRef.current?.();
       },
       (words) => {
-        chunksRef.current = chunkWordsIntoCaptions(words);
+        wordsRef.current = words;
       }
     );
     setIsSpeaking(true);

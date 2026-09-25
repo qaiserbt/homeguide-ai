@@ -6,7 +6,7 @@
  * underlying mechanism — this file is the one place that would change
  * again if the voice provider changes.
  */
-import type { WordTiming } from "../utils/captionChunks";
+import type { WordTiming } from "../utils/wordTiming";
 
 type EndListener = () => void;
 type WordsListener = (words: WordTiming[]) => void;
