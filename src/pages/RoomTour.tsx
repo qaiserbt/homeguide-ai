@@ -95,15 +95,21 @@ export function RoomTour() {
           </button>
         </div>
 
-        {/* everything below — avatar, nav controls — lives inside the photo frame */}
+        {/* everything below — caption, avatar, nav controls — lives inside the photo frame */}
         <div className="absolute inset-x-0 bottom-0 z-10 space-y-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6">
+          {narration.isSpeaking && !narration.isPaused && narration.caption && (
+            <p className="text-center text-xl font-bold text-white text-shadow-soft sm:text-2xl">
+              {narration.caption}
+            </p>
+          )}
+
           <AvatarGuide
             state={avatarState}
             size="md"
             position="inline"
             isSpeaking={narration.isSpeaking && !narration.isPaused}
-            message={narration.caption || room.narration}
-            hideMessageText={!(narration.isSpeaking && !narration.isPaused)}
+            message={room.narration}
+            hideMessageText
             onToggleAudio={narration.togglePlayPause}
           />
 
