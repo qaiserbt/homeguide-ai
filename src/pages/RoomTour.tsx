@@ -116,8 +116,22 @@ export function RoomTour() {
           <AudioControls
             isPlaying={narration.isSpeaking && !narration.isPaused}
             onTogglePlay={narration.togglePlayPause}
-            onPrevious={previousRoom ? () => navigate(`/tour/${property.slug}/room/${previousRoom.id}`) : undefined}
-            onNext={nextRoom ? () => navigate(`/tour/${property.slug}/room/${nextRoom.id}`) : undefined}
+            onPrevious={
+              previousRoom
+                ? () =>
+                    navigate(`/tour/${property.slug}/room/${previousRoom.id}`, {
+                      state: { autoplay: narration.isSpeaking && !narration.isPaused },
+                    })
+                : undefined
+            }
+            onNext={
+              nextRoom
+                ? () =>
+                    navigate(`/tour/${property.slug}/room/${nextRoom.id}`, {
+                      state: { autoplay: narration.isSpeaking && !narration.isPaused },
+                    })
+                : undefined
+            }
             previousDisabled={!previousRoom}
             nextDisabled={!nextRoom}
           />
