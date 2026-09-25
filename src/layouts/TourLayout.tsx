@@ -59,7 +59,12 @@ export function TourLayout() {
     <div className="min-h-screen bg-offwhite pb-20">
       <Outlet context={{ property, tourProgress, openContact: () => setContactOpen(true) } satisfies TourOutletContext} />
       <BottomNavigation propertyId={property.slug} onContact={() => setContactOpen(true)} />
-      <AgentContactSheet agent={property.agent} open={contactOpen} onClose={() => setContactOpen(false)} />
+      <AgentContactSheet
+        agent={property.agent}
+        propertyAddress={`${property.address}, ${property.city}`}
+        open={contactOpen}
+        onClose={() => setContactOpen(false)}
+      />
     </div>
   );
 }

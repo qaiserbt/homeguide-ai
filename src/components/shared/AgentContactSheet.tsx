@@ -4,6 +4,7 @@ import type { Agent } from "../../types/property";
 
 interface AgentContactSheetProps {
   agent: Agent;
+  propertyAddress: string;
   open: boolean;
   onClose: () => void;
 }
@@ -17,7 +18,7 @@ function WhatsAppIcon({ className }: { className?: string }) {
   );
 }
 
-export function AgentContactSheet({ agent, open, onClose }: AgentContactSheetProps) {
+export function AgentContactSheet({ agent, propertyAddress, open, onClose }: AgentContactSheetProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -31,11 +32,10 @@ export function AgentContactSheet({ agent, open, onClose }: AgentContactSheetPro
 
   if (!open) return null;
 
+  const inquiryMessage = `Hi ${agent.name}, I'm interested in ${propertyAddress}.`;
   const telHref = `tel:${agent.phone.replace(/[^\d+]/g, "")}`;
-  const smsHref = `sms:${agent.phone.replace(/[^\d+]/g, "")}`;
-  const waHref = `https://wa.me/${agent.phone.replace(/\D/g, "")}?text=${encodeURIComponent(
-    `Hi ${agent.name}, I'm reaching out about your property listing.`
-  )}`;
+  const smsHref = `sms:${agent.phone.replace(/[^\d+]/g, "")}?body=${encodeURIComponent(inquiryMessage)}`;
+  const waHref = `https://wa.me/${agent.phone.replace(/\D/g, "")}?text=${encodeURIComponent(inquiryMessage)}`;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label="Contact agent">
