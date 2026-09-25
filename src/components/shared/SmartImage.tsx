@@ -41,8 +41,21 @@ export function SmartImage({
 }: SmartImageProps) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [trackedSrc, setTrackedSrc] = useState(src);
   const visual = getRoomVisual(roomType ?? "other");
   const Icon = visual.icon;
+
+  // `src` can change after mount without this component remounting — e.g.
+  // a property syncing in from the backend with a real photo URL after an
+  // initial render used a placeholder path. Without resetting here, a
+  // failed load on the first src would permanently stick this in the
+  // fallback state, even once a valid src arrives. Adjusting state during
+  // render (rather than in an effect) avoids an extra render pass.
+  if (src !== trackedSrc) {
+    setTrackedSrc(src);
+    setFailed(false);
+    setLoaded(false);
+  }
 
   if (failed) {
     return (
