@@ -49,7 +49,7 @@ export function RoomTour() {
     <div className="lg:mx-auto lg:max-w-5xl lg:px-8 lg:py-8">
       <div className="lg:grid lg:grid-cols-[1.15fr_1fr] lg:gap-8">
         <div className="relative lg:min-w-0">
-          <div className="relative h-[52vh] min-h-[380px] w-full overflow-hidden sm:h-[60vh] lg:h-[640px] lg:rounded-[2rem]">
+          <div className="relative h-[72vh] min-h-[480px] w-full overflow-hidden sm:h-[75vh] lg:h-[720px] lg:rounded-[2rem]">
             <SmartImage
               key={room.id}
               src={room.image}
