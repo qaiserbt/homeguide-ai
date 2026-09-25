@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Grid3x3, X } from "lucide-react";
 import { useTourContext } from "../hooks/useTourContext";
-import { useNarration } from "../hooks/useNarration";
 import { AvatarGuide } from "../components/avatar/AvatarGuide";
 import { SmartImage } from "../components/shared/SmartImage";
 import { AudioControls } from "../components/tour/AudioControls";
@@ -11,7 +10,7 @@ import { whatsAppHref } from "../utils/contactLinks";
 import type { AvatarState } from "../types/avatar";
 
 export function RoomTour() {
-  const { property, tourProgress, openContact } = useTourContext();
+  const { property, tourProgress, narration, openContact } = useTourContext();
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -23,12 +22,15 @@ export function RoomTour() {
   const previousRoom = currentIndex > 0 ? rooms[currentIndex - 1] : undefined;
   const nextRoom = currentIndex >= 0 && currentIndex < rooms.length - 1 ? rooms[currentIndex + 1] : undefined;
 
-  const narration = useNarration(room?.narration ?? "", () => {
-    if (nextRoom) {
-      navigate(`/tour/${property.slug}/room/${nextRoom.id}`, { state: { autoplay: true }, replace: true });
-    }
-  });
+  // Narration is tour-wide (see useTourNarration) so switching rooms never
+  // interrupts audio already playing for a different room — these just
+  // reflect whether THIS room specifically is the one currently narrating.
+  const isThisRoomActive = narration.activeRoomId === room?.id;
+  const isSpeakingThisRoom = isThisRoomActive && narration.isSpeaking && !narration.isPaused;
 
+  // Carried from TourLayout's onRoomNaturallyFinished, which only navigates
+  // here (with autoplay) if the visitor was still looking at the room that
+  // just finished — so this is the deliberate "keep the guided tour going".
   const shouldAutoplay = Boolean((location.state as { autoplay?: boolean } | null)?.autoplay);
 
   useEffect(() => {
@@ -36,7 +38,7 @@ export function RoomTour() {
   }, [room?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (shouldAutoplay) narration.play();
+    if (shouldAutoplay && room) narration.playRoom(room);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.id]);
 
@@ -54,7 +56,7 @@ export function RoomTour() {
     );
   }
 
-  const avatarState: AvatarState = narration.isSpeaking && !narration.isPaused ? "speaking" : "explaining";
+  const avatarState: AvatarState = isSpeakingThisRoom ? "speaking" : "explaining";
 
   return (
     <div className="lg:mx-auto lg:max-w-4xl lg:py-8">
@@ -110,7 +112,7 @@ export function RoomTour() {
 
         {/* everything below — caption, avatar, nav controls — lives inside the photo frame */}
         <div className="absolute inset-x-0 bottom-0 z-10 space-y-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6">
-          {narration.isSpeaking && !narration.isPaused && narration.caption && (
+          {isSpeakingThisRoom && narration.caption && (
             <p className="text-center text-xl font-bold text-white text-shadow-soft sm:text-2xl">
               {narration.caption}
             </p>
@@ -120,31 +122,17 @@ export function RoomTour() {
             state={avatarState}
             size="md"
             position="inline"
-            isSpeaking={narration.isSpeaking && !narration.isPaused}
+            isSpeaking={isSpeakingThisRoom}
             message={room.narration}
             hideMessageText
-            onToggleAudio={narration.togglePlayPause}
+            onToggleAudio={() => narration.togglePlayPause(room)}
           />
 
           <AudioControls
-            isPlaying={narration.isSpeaking && !narration.isPaused}
-            onTogglePlay={narration.togglePlayPause}
-            onPrevious={
-              previousRoom
-                ? () =>
-                    navigate(`/tour/${property.slug}/room/${previousRoom.id}`, {
-                      state: { autoplay: narration.isSpeaking && !narration.isPaused },
-                    })
-                : undefined
-            }
-            onNext={
-              nextRoom
-                ? () =>
-                    navigate(`/tour/${property.slug}/room/${nextRoom.id}`, {
-                      state: { autoplay: narration.isSpeaking && !narration.isPaused },
-                    })
-                : undefined
-            }
+            isPlaying={isSpeakingThisRoom}
+            onTogglePlay={() => narration.togglePlayPause(room)}
+            onPrevious={previousRoom ? () => navigate(`/tour/${property.slug}/room/${previousRoom.id}`) : undefined}
+            onNext={nextRoom ? () => navigate(`/tour/${property.slug}/room/${nextRoom.id}`) : undefined}
             previousDisabled={!previousRoom}
             nextDisabled={!nextRoom}
           />
