@@ -5,7 +5,6 @@ import { useTourContext } from "../hooks/useTourContext";
 import { useNarration } from "../hooks/useNarration";
 import { AvatarGuide } from "../components/avatar/AvatarGuide";
 import { SmartImage } from "../components/shared/SmartImage";
-import { RoomSelector } from "../components/tour/RoomSelector";
 import { AudioControls } from "../components/tour/AudioControls";
 import type { AvatarState } from "../types/avatar";
 
@@ -96,7 +95,7 @@ export function RoomTour() {
           </button>
         </div>
 
-        {/* everything below — avatar, room selector, nav controls — lives inside the photo frame */}
+        {/* everything below — avatar, nav controls — lives inside the photo frame */}
         <div className="absolute inset-x-0 bottom-0 z-10 space-y-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6">
           <AvatarGuide
             state={avatarState}
@@ -106,13 +105,6 @@ export function RoomTour() {
             message={narration.caption || room.narration}
             hideMessageText={!(narration.isSpeaking && !narration.isPaused)}
             onToggleAudio={narration.togglePlayPause}
-          />
-
-          <RoomSelector
-            rooms={rooms}
-            currentRoomId={room.id}
-            propertySlug={property.slug}
-            viewedRooms={tourProgress.viewedRooms}
           />
 
           <AudioControls
