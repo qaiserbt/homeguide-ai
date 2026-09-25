@@ -45,7 +45,7 @@ export function RoomTour() {
 
   return (
     <div className="lg:mx-auto lg:max-w-4xl lg:py-8">
-      <div className="relative h-[60vh] min-h-[420px] w-full overflow-hidden sm:h-[70vh] lg:h-[75vh] lg:rounded-[2rem]">
+      <div className="relative h-[calc(100dvh-5rem)] min-h-[600px] w-full overflow-hidden lg:h-[85vh] lg:rounded-[2rem]">
         <SmartImage
           key={room.id}
           src={room.image}
@@ -55,7 +55,9 @@ export function RoomTour() {
           className="absolute inset-0 animate-fade-in"
           priority
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-navy/70 via-transparent to-navy/40" />
+        <div className="absolute inset-0 bg-gradient-to-t from-navy/30 via-transparent to-navy/40" />
+        {/* stronger scrim behind the bottom control stack so it stays legible over any photo */}
+        <div className="absolute inset-x-0 bottom-0 h-[65%] bg-gradient-to-t from-navy/95 via-navy/55 to-transparent" />
 
         {/* header */}
         <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-6">
@@ -82,8 +84,8 @@ export function RoomTour() {
           </button>
         </div>
 
-        {/* avatar overlay — stays in the property's visual space, never covering the main subject */}
-        <div className="absolute inset-x-4 bottom-4 z-10 sm:inset-x-6 sm:bottom-6">
+        {/* everything below — avatar, room selector, nav controls — lives inside the photo frame */}
+        <div className="absolute inset-x-0 bottom-0 z-10 space-y-4 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6">
           <AvatarGuide
             state={avatarState}
             size="md"
@@ -93,47 +95,45 @@ export function RoomTour() {
             hideMessageText
             onToggleAudio={narration.togglePlayPause}
           />
+
+          <RoomSelector
+            rooms={rooms}
+            currentRoomId={room.id}
+            propertySlug={property.slug}
+            viewedRooms={tourProgress.viewedRooms}
+          />
+
+          <AudioControls
+            isPlaying={narration.isSpeaking && !narration.isPaused}
+            onTogglePlay={narration.togglePlayPause}
+            onPrevious={previousRoom ? () => navigate(`/tour/${property.slug}/room/${previousRoom.id}`) : undefined}
+            onNext={nextRoom ? () => navigate(`/tour/${property.slug}/room/${nextRoom.id}`) : undefined}
+            previousDisabled={!previousRoom}
+            nextDisabled={!nextRoom}
+          />
         </div>
       </div>
 
-      <div className="space-y-5 px-4 pt-5 sm:px-6 lg:px-0">
-        <RoomSelector
-          rooms={rooms}
-          currentRoomId={room.id}
-          propertySlug={property.slug}
-          viewedRooms={tourProgress.viewedRooms}
-        />
-
-        <AudioControls
-          isPlaying={narration.isSpeaking && !narration.isPaused}
-          onTogglePlay={narration.togglePlayPause}
-          onPrevious={previousRoom ? () => navigate(`/tour/${property.slug}/room/${previousRoom.id}`) : undefined}
-          onNext={nextRoom ? () => navigate(`/tour/${property.slug}/room/${nextRoom.id}`) : undefined}
-          previousDisabled={!previousRoom}
-          nextDisabled={!nextRoom}
-        />
-
-        {tourProgress.isComplete && (
-          <div className="animate-fade-in rounded-2xl bg-navy/5 p-4 text-center">
-            <p className="text-sm font-medium text-navy">You&apos;ve completed the tour!</p>
-            <div className="mt-3 flex flex-wrap justify-center gap-2">
-              <Link to={`/tour/${property.slug}/ask`} className="rounded-full bg-navy px-4 py-2 text-xs font-semibold text-white hover:bg-navy-light">
-                Ask HomeGuide
-              </Link>
-              <Link to={`/tour/${property.slug}/gallery`} className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-navy shadow-card hover:bg-navy/5">
-                View Gallery
-              </Link>
-              <button
-                type="button"
-                onClick={openContact}
-                className="rounded-full bg-gold px-4 py-2 text-xs font-semibold text-navy shadow-gold hover:bg-gold-dark"
-              >
-                Contact Agent
-              </button>
-            </div>
+      {tourProgress.isComplete && (
+        <div className="animate-fade-in mx-4 mt-5 rounded-2xl bg-navy/5 p-4 text-center sm:mx-6 lg:mx-0">
+          <p className="text-sm font-medium text-navy">You&apos;ve completed the tour!</p>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            <Link to={`/tour/${property.slug}/ask`} className="rounded-full bg-navy px-4 py-2 text-xs font-semibold text-white hover:bg-navy-light">
+              Ask HomeGuide
+            </Link>
+            <Link to={`/tour/${property.slug}/gallery`} className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-navy shadow-card hover:bg-navy/5">
+              View Gallery
+            </Link>
+            <button
+              type="button"
+              onClick={openContact}
+              className="rounded-full bg-gold px-4 py-2 text-xs font-semibold text-navy shadow-gold hover:bg-gold-dark"
+            >
+              Contact Agent
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {gridOpen && (
         <div className="fixed inset-0 z-50 flex flex-col bg-navy/95 p-5 backdrop-blur-sm animate-fade-in">
