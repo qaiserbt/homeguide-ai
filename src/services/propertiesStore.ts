@@ -1,4 +1,5 @@
 import { properties as seedProperties } from "../data/properties";
+import { getAgentSettings } from "./agentSettings";
 import type { Property } from "../types/property";
 
 /**
@@ -8,6 +9,16 @@ import type { Property } from "../types/property";
  * exists — every caller already goes through this module, never through
  * data/properties.ts directly.
  */
+
+/**
+ * There's one agent (Qaiser), not one-per-property, so every property
+ * always shows the live Settings profile rather than whatever snapshot was
+ * saved on it at creation/edit time — otherwise editing Settings wouldn't
+ * update tours that already existed.
+ */
+function withLiveAgent(property: Property): Property {
+  return { ...property, agent: getAgentSettings() };
+}
 
 const STORAGE_KEY = "homeguide:custom-properties";
 const DELETED_SEED_KEY = "homeguide:deleted-seed-ids";
@@ -43,7 +54,7 @@ export function getAllProperties(): Property[] {
   const customIds = new Set(custom.map((p) => p.id));
   const deletedSeedIds = new Set(readDeletedSeedIds());
   const seed = seedProperties.filter((p) => !customIds.has(p.id) && !deletedSeedIds.has(p.id));
-  return [...seed, ...custom];
+  return [...seed, ...custom].map(withLiveAgent);
 }
 
 export function getPropertyBySlug(slug: string): Property | undefined {
