@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 export interface BackgroundMusic {
   available: boolean;
-  isMuted: boolean;
-  toggleMute: () => void;
+  /** Unmutes and (re)starts playback if needed — safe to call every time,
+   * even when already audible. Call it from inside a real user gesture
+   * (a click handler), since unmuting requires one the first time. */
+  ensureAudible: () => void;
 }
 
 const NORMAL_VOLUME = 0.22;
@@ -11,27 +13,18 @@ const DUCKED_VOLUME = 0.06;
 
 /**
  * A single looping background track for the whole tour, independent of
- * which room is being viewed or narrated. Starts muted — muted autoplay is
- * allowed by every browser without a user gesture, so the track is already
- * playing by the time someone taps the speaker icon to unmute it, instead
- * of that first tap having to both start AND unmute playback.
+ * which room is being viewed or narrated. Starts muted (browsers only
+ * allow autoplay-with-sound inside a genuine user gesture) and stays that
+ * way until `ensureAudible()` is called — the caller wires that into
+ * whatever already counts as a user gesture (pressing Play on the
+ * narration), so no separate mute toggle is needed. Once unmuted it just
+ * keeps playing for the rest of the session.
  *
  * `duck` (true while any room's narration is actively speaking) lowers the
  * volume so the voice guide stays clearly audible over the music.
  */
 export function useBackgroundMusic(url: string | null, enabled: boolean, duck: boolean): BackgroundMusic {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [isMuted, setIsMuted] = useState(true);
-
-  // A new track/enabled state means a fresh Audio element (below), which
-  // always starts muted — reset the mute-state UI to match during render,
-  // rather than from inside the effect that creates it.
-  const trackKey = `${url ?? ""}:${enabled}`;
-  const [trackedKey, setTrackedKey] = useState(trackKey);
-  if (trackKey !== trackedKey) {
-    setTrackedKey(trackKey);
-    setIsMuted(true);
-  }
 
   useEffect(() => {
     if (!enabled || !url) {
@@ -45,7 +38,7 @@ export function useBackgroundMusic(url: string | null, enabled: boolean, duck: b
     audio.volume = NORMAL_VOLUME;
     audioRef.current = audio;
     audio.play().catch(() => {
-      /* even muted autoplay can occasionally be blocked — the toggle still works once the user interacts */
+      /* even muted autoplay can occasionally be blocked — ensureAudible still works once the user interacts */
     });
     return () => {
       audio.pause();
@@ -57,13 +50,12 @@ export function useBackgroundMusic(url: string | null, enabled: boolean, duck: b
     if (audioRef.current) audioRef.current.volume = duck ? DUCKED_VOLUME : NORMAL_VOLUME;
   }, [duck]);
 
-  const toggleMute = () => {
+  const ensureAudible = () => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.muted = !audio.muted;
-    setIsMuted(audio.muted);
-    if (!audio.muted) audio.play().catch(() => {});
+    if (audio.muted) audio.muted = false;
+    if (audio.paused) audio.play().catch(() => {});
   };
 
-  return { available: Boolean(enabled && url), isMuted, toggleMute };
+  return { available: Boolean(enabled && url), ensureAudible };
 }

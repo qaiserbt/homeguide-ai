@@ -7,14 +7,13 @@ import { BottomNavigation } from "../components/shared/BottomNavigation";
 import { AgentContactSheet } from "../components/shared/AgentContactSheet";
 import { useTourProgress } from "../hooks/useTourProgress";
 import { useTourNarration, type TourNarration } from "../hooks/useTourNarration";
-import { useBackgroundMusic, type BackgroundMusic } from "../hooks/useBackgroundMusic";
+import { useBackgroundMusic } from "../hooks/useBackgroundMusic";
 import type { Property } from "../types/property";
 
 export interface TourOutletContext {
   property: Property;
   tourProgress: ReturnType<typeof useTourProgress>;
   narration: TourNarration;
-  music: BackgroundMusic;
   openContact: () => void;
 }
 
@@ -56,6 +55,24 @@ export function TourLayout() {
     siteSettings.backgroundMusicEnabled,
     narration.isSpeaking && !narration.isPaused
   );
+
+  // No separate mute button — music turns itself on the first time the
+  // visitor presses play on the narration (a real user gesture, which is
+  // what unmuting requires), then just keeps playing for the rest of the
+  // session. Every play/pause tap goes through these two functions, so
+  // wrapping them here covers every entry point (the big play button, the
+  // avatar tap, autoplay-on-room-entry).
+  const narrationWithMusic: TourNarration = {
+    ...narration,
+    playRoom: (room) => {
+      music.ensureAudible();
+      narration.playRoom(room);
+    },
+    togglePlayPause: (room) => {
+      music.ensureAudible();
+      narration.togglePlayPause(room);
+    },
+  };
 
   // The property may have been created/edited on a different device — pull
   // the latest from the shared backend so this tour doesn't show stale (or
@@ -119,7 +136,11 @@ export function TourLayout() {
 
   return (
     <div className="min-h-screen bg-offwhite pb-20">
-      <Outlet context={{ property, tourProgress, narration, music, openContact: () => setContactOpen(true) } satisfies TourOutletContext} />
+      <Outlet
+        context={
+          { property, tourProgress, narration: narrationWithMusic, openContact: () => setContactOpen(true) } satisfies TourOutletContext
+        }
+      />
       <BottomNavigation propertyId={property.slug} onContact={() => setContactOpen(true)} />
       <AgentContactSheet
         agent={property.agent}
