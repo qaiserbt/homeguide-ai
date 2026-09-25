@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Grid3x3, X } from "lucide-react";
+import { ArrowLeft, Grid3x3, X, Music, VolumeX } from "lucide-react";
 import { useTourContext } from "../hooks/useTourContext";
 import { AvatarGuide } from "../components/avatar/AvatarGuide";
 import { SmartImage } from "../components/shared/SmartImage";
@@ -10,7 +10,7 @@ import { whatsAppHref } from "../utils/contactLinks";
 import type { AvatarState } from "../types/avatar";
 
 export function RoomTour() {
-  const { property, tourProgress, narration, openContact } = useTourContext();
+  const { property, tourProgress, narration, music, openContact } = useTourContext();
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -90,6 +90,16 @@ export function RoomTour() {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            {music.available && (
+              <button
+                type="button"
+                onClick={music.toggleMute}
+                aria-label={music.isMuted ? "Turn on background music" : "Mute background music"}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md hover:bg-white/25"
+              >
+                {music.isMuted ? <VolumeX className="h-5 w-5" /> : <Music className="h-5 w-5" />}
+              </button>
+            )}
             <a
               href={whatsAppHref(property.agent, `${property.address}, ${property.city}`)}
               target="_blank"

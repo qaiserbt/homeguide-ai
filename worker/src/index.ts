@@ -8,12 +8,16 @@ export interface Env {
   ELEVENLABS_API_KEY: string;
 }
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20MB — covers a few-minute background music track too
 const ALLOWED_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
   "image/gif": "gif",
+  "audio/mpeg": "mp3",
+  "audio/mp4": "m4a",
+  "audio/wav": "wav",
+  "audio/ogg": "ogg",
 };
 
 const MAX_LISTING_TEXT_CHARS = 60_000;
@@ -435,6 +439,42 @@ async function handleDeleteProperty(id: string, env: Env, cors: HeadersInit): Pr
   return json({ ok: true }, 200, cors);
 }
 
+const SITE_SETTINGS_KEY = "site-settings.json";
+const MAX_SITE_SETTINGS_BYTES = 64 * 1024; // 64KB — a tiny settings blob, not media
+
+/** Small shared settings blob (currently just background music) — same
+ * cross-device reasoning as /properties: this is edited from whichever
+ * device the agent happens to be on, so it can't live in localStorage alone. */
+async function handleGetSiteSettings(env: Env, cors: HeadersInit): Promise<Response> {
+  const object = await env.PHOTOS.get(SITE_SETTINGS_KEY);
+  if (!object) return json({ settings: null }, 200, cors);
+  try {
+    return json({ settings: await object.json() }, 200, cors);
+  } catch {
+    return json({ settings: null }, 200, cors);
+  }
+}
+
+async function handleSaveSiteSettings(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
+  const raw = await request.text();
+  if (raw.length > MAX_SITE_SETTINGS_BYTES) {
+    return json({ error: "Settings payload too large" }, 413, cors);
+  }
+  let settings: unknown;
+  try {
+    settings = JSON.parse(raw);
+  } catch {
+    return json({ error: "Expected a JSON settings object" }, 400, cors);
+  }
+  if (!settings || typeof settings !== "object") {
+    return json({ error: "Expected a JSON settings object" }, 400, cors);
+  }
+  await env.PHOTOS.put(SITE_SETTINGS_KEY, JSON.stringify(settings), {
+    httpMetadata: { contentType: "application/json" },
+  });
+  return json({ ok: true }, 200, cors);
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const origin = request.headers.get("Origin");
@@ -491,6 +531,13 @@ export default {
     }
     if (propertyMatch && request.method === "DELETE") {
       return handleDeleteProperty(decodeURIComponent(propertyMatch[1]), env, cors);
+    }
+
+    if (url.pathname === "/site-settings" && request.method === "GET") {
+      return handleGetSiteSettings(env, cors);
+    }
+    if (url.pathname === "/site-settings" && request.method === "PUT") {
+      return handleSaveSiteSettings(request, env, cors);
     }
 
     return json({ error: "Not found" }, 404, cors);

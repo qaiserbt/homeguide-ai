@@ -2,16 +2,19 @@ import { useEffect, useState } from "react";
 import { Outlet, useParams, useLocation, Link, useNavigate } from "react-router-dom";
 import { Home } from "lucide-react";
 import { getPropertyBySlug, isDeletedSeedSlug, restoreSeedBySlug, syncPropertiesFromBackend } from "../services/propertiesStore";
+import { getSiteSettings, getActiveTrackUrl, syncSiteSettingsFromBackend } from "../services/siteSettings";
 import { BottomNavigation } from "../components/shared/BottomNavigation";
 import { AgentContactSheet } from "../components/shared/AgentContactSheet";
 import { useTourProgress } from "../hooks/useTourProgress";
 import { useTourNarration, type TourNarration } from "../hooks/useTourNarration";
+import { useBackgroundMusic, type BackgroundMusic } from "../hooks/useBackgroundMusic";
 import type { Property } from "../types/property";
 
 export interface TourOutletContext {
   property: Property;
   tourProgress: ReturnType<typeof useTourProgress>;
   narration: TourNarration;
+  music: BackgroundMusic;
   openContact: () => void;
 }
 
@@ -23,6 +26,7 @@ export function TourLayout() {
   const [property, setProperty] = useState<Property | undefined>(() =>
     propertyId ? getPropertyBySlug(propertyId) : undefined
   );
+  const [siteSettings, setSiteSettings] = useState(() => getSiteSettings());
   const tourProgress = useTourProgress(propertyId ?? "", property?.rooms.length ?? 0);
 
   // Narration lives here (tour-wide), not per-room, so that Previous/Next
@@ -45,6 +49,14 @@ export function TourLayout() {
     }
   });
 
+  // Background music sits under the narration, ducking whenever any room's
+  // narration is actively speaking so the voice guide stays clear.
+  const music = useBackgroundMusic(
+    getActiveTrackUrl(siteSettings),
+    siteSettings.backgroundMusicEnabled,
+    narration.isSpeaking && !narration.isPaused
+  );
+
   // The property may have been created/edited on a different device — pull
   // the latest from the shared backend so this tour doesn't show stale (or
   // empty) data just because this browser never made that edit itself.
@@ -57,6 +69,18 @@ export function TourLayout() {
       cancelled = true;
     };
   }, [propertyId]);
+
+  // Same reasoning for background music settings — pull the latest track
+  // choice from the shared backend once on mount.
+  useEffect(() => {
+    let cancelled = false;
+    syncSiteSettingsFromBackend().then((synced) => {
+      if (!cancelled && synced) setSiteSettings(getSiteSettings());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (!property) {
     const wasDeleted = propertyId ? isDeletedSeedSlug(propertyId) : false;
@@ -95,7 +119,7 @@ export function TourLayout() {
 
   return (
     <div className="min-h-screen bg-offwhite pb-20">
-      <Outlet context={{ property, tourProgress, narration, openContact: () => setContactOpen(true) } satisfies TourOutletContext} />
+      <Outlet context={{ property, tourProgress, narration, music, openContact: () => setContactOpen(true) } satisfies TourOutletContext} />
       <BottomNavigation propertyId={property.slug} onContact={() => setContactOpen(true)} />
       <AgentContactSheet
         agent={property.agent}
