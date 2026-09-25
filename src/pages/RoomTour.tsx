@@ -118,15 +118,7 @@ export function RoomTour() {
             </p>
           )}
 
-          <AvatarGuide
-            state={avatarState}
-            size="md"
-            position="inline"
-            isSpeaking={isSpeakingThisRoom}
-            message={room.narration}
-            hideMessageText
-            onToggleAudio={() => narration.togglePlayPause(room)}
-          />
+          <AvatarGuide state={avatarState} size="md" position="inline" isSpeaking={isSpeakingThisRoom} />
 
           <AudioControls
             isPlaying={isSpeakingThisRoom}

@@ -1,4 +1,3 @@
-import { Volume2, VolumeX } from "lucide-react";
 import { AvatarRenderer } from "./AvatarRenderer";
 import { SpeechBubble } from "../shared/SpeechBubble";
 import type { AvatarState, AvatarSize, AvatarPosition } from "../../types/avatar";
@@ -9,8 +8,6 @@ interface AvatarGuideProps {
   position?: AvatarPosition;
   /** Optional compact speech bubble rendered next to the avatar. */
   message?: string;
-  /** Play the narration without showing its text — just a standalone audio button. */
-  hideMessageText?: boolean;
   isSpeaking?: boolean;
   onToggleAudio?: () => void;
   className?: string;
@@ -42,7 +39,6 @@ export function AvatarGuide({
   size = "md",
   position = "inline",
   message,
-  hideMessageText = false,
   isSpeaking = false,
   onToggleAudio,
   className = "",
@@ -61,18 +57,7 @@ export function AvatarGuide({
           </div>
         </div>
       </div>
-      {message && hideMessageText && onToggleAudio && (
-        <button
-          type="button"
-          onClick={onToggleAudio}
-          aria-label={isSpeaking ? "Pause narration" : "Play narration"}
-          aria-pressed={isSpeaking}
-          className="mb-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/95 text-navy shadow-card-lg backdrop-blur-sm transition-transform active:scale-95 hover:bg-white"
-        >
-          {isSpeaking ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-        </button>
-      )}
-      {message && !hideMessageText && (
+      {message && (
         <SpeechBubble
           text={message}
           isSpeaking={isSpeaking}
