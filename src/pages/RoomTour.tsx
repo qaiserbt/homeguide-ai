@@ -100,15 +100,6 @@ export function RoomTour() {
         </div>
 
         <div className="space-y-5 px-4 pt-5 sm:px-6 lg:min-w-0 lg:px-0 lg:pt-0">
-          <RoomFeatures features={room.features} />
-
-          <RoomSelector
-            rooms={rooms}
-            currentRoomId={room.id}
-            propertySlug={property.slug}
-            viewedRooms={tourProgress.viewedRooms}
-          />
-
           <AudioControls
             isPlaying={narration.isSpeaking && !narration.isPaused}
             onTogglePlay={narration.togglePlayPause}
@@ -116,6 +107,15 @@ export function RoomTour() {
             onNext={nextRoom ? () => navigate(`/tour/${property.slug}/room/${nextRoom.id}`) : undefined}
             previousDisabled={!previousRoom}
             nextDisabled={!nextRoom}
+          />
+
+          <RoomFeatures features={room.features} />
+
+          <RoomSelector
+            rooms={rooms}
+            currentRoomId={room.id}
+            propertySlug={property.slug}
+            viewedRooms={tourProgress.viewedRooms}
           />
 
           {tourProgress.isComplete && (
