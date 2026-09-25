@@ -263,6 +263,51 @@ async function sha256Hex(input: string): Promise<string> {
     .join("");
 }
 
+interface WordTiming {
+  text: string;
+  start: number;
+  end: number;
+}
+
+interface ElevenLabsAlignment {
+  characters: string[];
+  character_start_times_seconds: number[];
+  character_end_times_seconds: number[];
+}
+
+/** Derives word-level timings from ElevenLabs' character-level alignment. */
+function deriveWordTimings(alignment: ElevenLabsAlignment): WordTiming[] {
+  const words: WordTiming[] = [];
+  let current = "";
+  let start: number | null = null;
+
+  for (let i = 0; i < alignment.characters.length; i++) {
+    const ch = alignment.characters[i];
+    if (/\s/.test(ch)) {
+      if (current) {
+        words.push({ text: current, start: start ?? 0, end: alignment.character_end_times_seconds[i - 1] });
+        current = "";
+        start = null;
+      }
+      continue;
+    }
+    if (start === null) start = alignment.character_start_times_seconds[i];
+    current += ch;
+  }
+  if (current) {
+    const lastIndex = alignment.characters.length - 1;
+    words.push({ text: current, start: start ?? 0, end: alignment.character_end_times_seconds[lastIndex] });
+  }
+  return words;
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
 async function handleSynthesizeSpeech(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   if (!env.ELEVENLABS_API_KEY) {
     return json({ error: "Voice synthesis isn't configured yet (missing API key)." }, 503, cors);
@@ -281,25 +326,33 @@ async function handleSynthesizeSpeech(request: Request, env: Env, cors: HeadersI
 
   const text = body.text.trim().slice(0, MAX_SPEECH_TEXT_CHARS);
 
-  // Narration text rarely changes, so cache the generated audio in R2 keyed
-  // by a hash of (voice, text) — repeat plays of the same line, by the same
-  // visitor or a different one, are served straight from R2 and never touch
-  // ElevenLabs again (no credits spent past the first synthesis).
-  const cacheKey = `audio/${await sha256Hex(`${env.ELEVENLABS_VOICE_ID}:${text}`)}.mp3`;
+  // Narration text rarely changes, so cache the generated audio (+ word
+  // timings, for caption sync) in R2 keyed by a hash of (voice, text) —
+  // repeat plays of the same line, by the same visitor or a different one,
+  // are served straight from R2 and never touch ElevenLabs again (no
+  // credits spent past the first synthesis).
+  const hash = await sha256Hex(`${env.ELEVENLABS_VOICE_ID}:${text}`);
+  const audioKey = `audio/${hash}.mp3`;
+  const timingKey = `audio/${hash}.json`;
 
-  const existing = await env.PHOTOS.head(cacheKey);
-  if (existing) {
-    return json({ url: `${env.PUBLIC_BUCKET_URL}/${cacheKey}`, cached: true }, 200, cors);
+  const existingTiming = await env.PHOTOS.get(timingKey);
+  if (existingTiming) {
+    const existingAudio = await env.PHOTOS.head(audioKey);
+    if (existingAudio) {
+      const words = await existingTiming.json<WordTiming[]>();
+      return json({ url: `${env.PUBLIC_BUCKET_URL}/${audioKey}`, words, cached: true }, 200, cors);
+    }
   }
+  // Falls through to regenerate if either file is missing — e.g. audio
+  // cached before timing support existed, self-healing on next request.
 
   let response: Response;
   try {
-    response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${env.ELEVENLABS_VOICE_ID}`, {
+    response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${env.ELEVENLABS_VOICE_ID}/with-timestamps`, {
       method: "POST",
       headers: {
         "xi-api-key": env.ELEVENLABS_API_KEY,
         "Content-Type": "application/json",
-        Accept: "audio/mpeg",
       },
       body: JSON.stringify({
         text,
@@ -316,10 +369,14 @@ async function handleSynthesizeSpeech(request: Request, env: Env, cors: HeadersI
     return json({ error: `Voice provider error (${response.status})`, detail: detail.slice(0, 300) }, 502, cors);
   }
 
-  const audio = await response.arrayBuffer();
-  await env.PHOTOS.put(cacheKey, audio, { httpMetadata: { contentType: "audio/mpeg" } });
+  const data = (await response.json()) as { audio_base64: string; alignment: ElevenLabsAlignment };
+  const audioBytes = base64ToBytes(data.audio_base64);
+  const words = deriveWordTimings(data.alignment);
 
-  return json({ url: `${env.PUBLIC_BUCKET_URL}/${cacheKey}`, cached: false }, 200, cors);
+  await env.PHOTOS.put(audioKey, audioBytes, { httpMetadata: { contentType: "audio/mpeg" } });
+  await env.PHOTOS.put(timingKey, JSON.stringify(words), { httpMetadata: { contentType: "application/json" } });
+
+  return json({ url: `${env.PUBLIC_BUCKET_URL}/${audioKey}`, words, cached: false }, 200, cors);
 }
 
 export default {

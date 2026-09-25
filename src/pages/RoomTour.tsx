@@ -103,7 +103,7 @@ export function RoomTour() {
             size="md"
             position="inline"
             isSpeaking={narration.isSpeaking && !narration.isPaused}
-            message={room.narration}
+            message={narration.caption || room.narration}
             hideMessageText={!(narration.isSpeaking && !narration.isPaused)}
             onToggleAudio={narration.togglePlayPause}
           />
