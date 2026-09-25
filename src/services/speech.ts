@@ -15,9 +15,17 @@ export function isSpeechSupported(): boolean {
   return supported();
 }
 
+// The Web Speech API fires `onend` both when an utterance finishes naturally
+// AND when it's cancelled (e.g. by calling speak() again or stop()), with no
+// reliable way to tell the two apart from the event itself. We track whether
+// the in-flight cancel was intentional so callers only hear about genuine
+// completions — needed for features like auto-advancing to the next room.
+let suppressNextEnd = false;
+
 export function speak(text: string, onEnd?: EndListener): void {
   if (!supported()) return;
 
+  suppressNextEnd = true;
   window.speechSynthesis.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
@@ -25,7 +33,13 @@ export function speak(text: string, onEnd?: EndListener): void {
   utterance.pitch = 1.0;
   utterance.volume = 1;
 
-  utterance.onend = () => onEnd?.();
+  utterance.onstart = () => {
+    suppressNextEnd = false;
+  };
+  utterance.onend = () => {
+    if (suppressNextEnd) return;
+    onEnd?.();
+  };
 
   window.speechSynthesis.speak(utterance);
 }
@@ -42,6 +56,7 @@ export function resume(): void {
 
 export function stop(): void {
   if (!supported()) return;
+  suppressNextEnd = true;
   window.speechSynthesis.cancel();
 }
 

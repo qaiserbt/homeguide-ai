@@ -4,12 +4,19 @@ import * as speechService from "../services/speech";
 /**
  * Drives play/pause/replay state for a single block of narration text,
  * backed by src/services/speech.ts. Audio never autostarts (section 9) —
- * the caller decides when to invoke play/togglePlayPause.
+ * the caller decides when to invoke play/togglePlayPause. `onNaturalEnd`
+ * fires only when the narration finishes on its own (not when paused or
+ * interrupted) — useful for auto-advancing to the next room.
  */
-export function useNarration(text: string) {
+export function useNarration(text: string, onNaturalEnd?: () => void) {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const textRef = useRef(text);
+  const onNaturalEndRef = useRef(onNaturalEnd);
+
+  useEffect(() => {
+    onNaturalEndRef.current = onNaturalEnd;
+  });
 
   useEffect(() => {
     textRef.current = text;
@@ -22,6 +29,7 @@ export function useNarration(text: string) {
     speechService.speak(textRef.current, () => {
       setIsSpeaking(false);
       setIsPaused(false);
+      onNaturalEndRef.current?.();
     });
     setIsSpeaking(true);
     setIsPaused(false);

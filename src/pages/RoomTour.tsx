@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Grid3x3, X } from "lucide-react";
 import { useTourContext } from "../hooks/useTourContext";
 import { useNarration } from "../hooks/useNarration";
@@ -13,6 +13,7 @@ export function RoomTour() {
   const { property, tourProgress, openContact } = useTourContext();
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [gridOpen, setGridOpen] = useState(false);
 
   const rooms = useMemo(() => [...property.rooms].sort((a, b) => a.order - b.order), [property.rooms]);
@@ -21,11 +22,22 @@ export function RoomTour() {
   const previousRoom = currentIndex > 0 ? rooms[currentIndex - 1] : undefined;
   const nextRoom = currentIndex >= 0 && currentIndex < rooms.length - 1 ? rooms[currentIndex + 1] : undefined;
 
-  const narration = useNarration(room?.narration ?? "");
+  const narration = useNarration(room?.narration ?? "", () => {
+    if (nextRoom) {
+      navigate(`/tour/${property.slug}/room/${nextRoom.id}`, { state: { autoplay: true }, replace: true });
+    }
+  });
+
+  const shouldAutoplay = Boolean((location.state as { autoplay?: boolean } | null)?.autoplay);
 
   useEffect(() => {
     if (room) tourProgress.markViewed(room.id);
   }, [room?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (shouldAutoplay) narration.play();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.id]);
 
   useEffect(() => {
     if (!nextRoom) return;
@@ -92,7 +104,7 @@ export function RoomTour() {
             position="inline"
             isSpeaking={narration.isSpeaking && !narration.isPaused}
             message={room.narration}
-            hideMessageText
+            hideMessageText={!(narration.isSpeaking && !narration.isPaused)}
             onToggleAudio={narration.togglePlayPause}
           />
 
