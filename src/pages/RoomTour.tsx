@@ -44,99 +44,95 @@ export function RoomTour() {
   const avatarState: AvatarState = narration.isSpeaking && !narration.isPaused ? "speaking" : "explaining";
 
   return (
-    <div className="lg:mx-auto lg:max-w-5xl lg:px-8 lg:py-8">
-      <div className="lg:grid lg:grid-cols-[1.15fr_1fr] lg:gap-8">
-        <div className="relative lg:min-w-0">
-          <div className="relative h-[72vh] min-h-[480px] w-full overflow-hidden sm:h-[75vh] lg:h-[720px] lg:rounded-[2rem]">
-            <SmartImage
-              key={room.id}
-              src={room.image}
-              alt={room.name}
-              label={room.name}
-              roomType={room.type}
-              className="absolute inset-0 animate-fade-in"
-              priority
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-navy/70 via-transparent to-navy/40" />
+    <div className="lg:mx-auto lg:max-w-4xl lg:py-8">
+      <div className="relative h-[60vh] min-h-[420px] w-full overflow-hidden sm:h-[70vh] lg:h-[75vh] lg:rounded-[2rem]">
+        <SmartImage
+          key={room.id}
+          src={room.image}
+          alt={room.name}
+          label={room.name}
+          roomType={room.type}
+          className="absolute inset-0 animate-fade-in"
+          priority
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-navy/70 via-transparent to-navy/40" />
 
-            {/* header */}
-            <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-6">
-              <Link
-                to={`/tour/${property.slug}`}
-                aria-label="Back to home"
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md hover:bg-white/25"
-              >
-                <ArrowLeft className="h-5 w-5" />
+        {/* header */}
+        <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-6">
+          <Link
+            to={`/tour/${property.slug}`}
+            aria-label="Back to home"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md hover:bg-white/25"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <div className="flex flex-col items-center">
+            <span className="font-serif text-lg text-white text-shadow-soft">{room.name}</span>
+            <span className="text-xs text-white/70">
+              {currentIndex + 1} / {rooms.length}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setGridOpen(true)}
+            aria-label="Browse all rooms"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md hover:bg-white/25"
+          >
+            <Grid3x3 className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* avatar overlay — stays in the property's visual space, never covering the main subject */}
+        <div className="absolute inset-x-4 bottom-4 z-10 sm:inset-x-6 sm:bottom-6">
+          <AvatarGuide
+            state={avatarState}
+            size="md"
+            position="inline"
+            isSpeaking={narration.isSpeaking && !narration.isPaused}
+            message={room.narration}
+            hideMessageText
+            onToggleAudio={narration.togglePlayPause}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-5 px-4 pt-5 sm:px-6 lg:px-0">
+        <AudioControls
+          isPlaying={narration.isSpeaking && !narration.isPaused}
+          onTogglePlay={narration.togglePlayPause}
+          onPrevious={previousRoom ? () => navigate(`/tour/${property.slug}/room/${previousRoom.id}`) : undefined}
+          onNext={nextRoom ? () => navigate(`/tour/${property.slug}/room/${nextRoom.id}`) : undefined}
+          previousDisabled={!previousRoom}
+          nextDisabled={!nextRoom}
+        />
+
+        <RoomSelector
+          rooms={rooms}
+          currentRoomId={room.id}
+          propertySlug={property.slug}
+          viewedRooms={tourProgress.viewedRooms}
+        />
+
+        {tourProgress.isComplete && (
+          <div className="animate-fade-in rounded-2xl bg-navy/5 p-4 text-center">
+            <p className="text-sm font-medium text-navy">You&apos;ve completed the tour!</p>
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              <Link to={`/tour/${property.slug}/ask`} className="rounded-full bg-navy px-4 py-2 text-xs font-semibold text-white hover:bg-navy-light">
+                Ask HomeGuide
               </Link>
-              <div className="flex flex-col items-center">
-                <span className="font-serif text-lg text-white text-shadow-soft">{room.name}</span>
-                <span className="text-xs text-white/70">
-                  {currentIndex + 1} / {rooms.length}
-                </span>
-              </div>
+              <Link to={`/tour/${property.slug}/gallery`} className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-navy shadow-card hover:bg-navy/5">
+                View Gallery
+              </Link>
               <button
                 type="button"
-                onClick={() => setGridOpen(true)}
-                aria-label="Browse all rooms"
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md hover:bg-white/25"
+                onClick={openContact}
+                className="rounded-full bg-gold px-4 py-2 text-xs font-semibold text-navy shadow-gold hover:bg-gold-dark"
               >
-                <Grid3x3 className="h-5 w-5" />
+                Contact Agent
               </button>
             </div>
-
-            {/* avatar overlay — stays in the property's visual space, never covering the main subject */}
-            <div className="absolute inset-x-4 bottom-4 z-10 sm:inset-x-6 sm:bottom-6">
-              <AvatarGuide
-                state={avatarState}
-                size="md"
-                position="inline"
-                isSpeaking={narration.isSpeaking && !narration.isPaused}
-                message={room.narration}
-                hideMessageText
-                onToggleAudio={narration.togglePlayPause}
-              />
-            </div>
           </div>
-        </div>
-
-        <div className="space-y-5 px-4 pt-5 sm:px-6 lg:min-w-0 lg:px-0 lg:pt-0">
-          <AudioControls
-            isPlaying={narration.isSpeaking && !narration.isPaused}
-            onTogglePlay={narration.togglePlayPause}
-            onPrevious={previousRoom ? () => navigate(`/tour/${property.slug}/room/${previousRoom.id}`) : undefined}
-            onNext={nextRoom ? () => navigate(`/tour/${property.slug}/room/${nextRoom.id}`) : undefined}
-            previousDisabled={!previousRoom}
-            nextDisabled={!nextRoom}
-          />
-
-          <RoomSelector
-            rooms={rooms}
-            currentRoomId={room.id}
-            propertySlug={property.slug}
-            viewedRooms={tourProgress.viewedRooms}
-          />
-
-          {tourProgress.isComplete && (
-            <div className="animate-fade-in rounded-2xl bg-navy/5 p-4 text-center">
-              <p className="text-sm font-medium text-navy">You&apos;ve completed the tour!</p>
-              <div className="mt-3 flex flex-wrap justify-center gap-2">
-                <Link to={`/tour/${property.slug}/ask`} className="rounded-full bg-navy px-4 py-2 text-xs font-semibold text-white hover:bg-navy-light">
-                  Ask HomeGuide
-                </Link>
-                <Link to={`/tour/${property.slug}/gallery`} className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-navy shadow-card hover:bg-navy/5">
-                  View Gallery
-                </Link>
-                <button
-                  type="button"
-                  onClick={openContact}
-                  className="rounded-full bg-gold px-4 py-2 text-xs font-semibold text-navy shadow-gold hover:bg-gold-dark"
-                >
-                  Contact Agent
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
       {gridOpen && (
