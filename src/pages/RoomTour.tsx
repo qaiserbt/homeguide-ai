@@ -6,6 +6,8 @@ import { useNarration } from "../hooks/useNarration";
 import { AvatarGuide } from "../components/avatar/AvatarGuide";
 import { SmartImage } from "../components/shared/SmartImage";
 import { AudioControls } from "../components/tour/AudioControls";
+import { WhatsAppIcon } from "../components/shared/WhatsAppIcon";
+import { whatsAppHref } from "../utils/contactLinks";
 import type { AvatarState } from "../types/avatar";
 
 export function RoomTour() {
@@ -85,14 +87,25 @@ export function RoomTour() {
               {currentIndex + 1} / {rooms.length}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => setGridOpen(true)}
-            aria-label="Browse all rooms"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md hover:bg-white/25"
-          >
-            <Grid3x3 className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href={whatsAppHref(property.agent, `${property.address}, ${property.city}`)}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Chat on WhatsApp"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#25D366] text-white shadow-md transition-colors hover:bg-[#20bd5a]"
+            >
+              <WhatsAppIcon className="h-5 w-5" />
+            </a>
+            <button
+              type="button"
+              onClick={() => setGridOpen(true)}
+              aria-label="Browse all rooms"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md hover:bg-white/25"
+            >
+              <Grid3x3 className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* everything below — caption, avatar, nav controls — lives inside the photo frame */}
