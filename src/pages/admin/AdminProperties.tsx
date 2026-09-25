@@ -1,7 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Pencil, Eye, Copy, Trash2, PlusCircle } from "lucide-react";
-import { getAllProperties, deleteProperty, duplicateProperty } from "../../services/propertiesStore";
+import { getAllProperties, deleteProperty, duplicateProperty, syncPropertiesFromBackend } from "../../services/propertiesStore";
 import { SmartImage } from "../../components/shared/SmartImage";
 import { formatCurrency } from "../../utils/format";
 import { publicTourUrl } from "../../utils/publicTourUrl";
@@ -10,6 +10,14 @@ export function AdminProperties() {
   const [properties, setProperties] = useState(() => getAllProperties());
 
   const refresh = useCallback(() => setProperties(getAllProperties()), []);
+
+  // Properties may have been created/edited on another device — pull the
+  // latest from the shared backend so this list isn't missing them.
+  useEffect(() => {
+    syncPropertiesFromBackend().then((synced) => {
+      if (synced) refresh();
+    });
+  }, [refresh]);
 
   function handleDelete(id: string, address: string) {
     if (!window.confirm(`Delete "${address}"? This can't be undone.`)) return;

@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, useParams, Link, useNavigate } from "react-router-dom";
 import { Home } from "lucide-react";
-import { getPropertyBySlug, isDeletedSeedSlug, restoreSeedBySlug } from "../services/propertiesStore";
+import { getPropertyBySlug, isDeletedSeedSlug, restoreSeedBySlug, syncPropertiesFromBackend } from "../services/propertiesStore";
 import { BottomNavigation } from "../components/shared/BottomNavigation";
 import { AgentContactSheet } from "../components/shared/AgentContactSheet";
 import { useTourProgress } from "../hooks/useTourProgress";
@@ -17,8 +17,23 @@ export function TourLayout() {
   const { propertyId } = useParams<{ propertyId: string }>();
   const navigate = useNavigate();
   const [contactOpen, setContactOpen] = useState(false);
-  const property = propertyId ? getPropertyBySlug(propertyId) : undefined;
+  const [property, setProperty] = useState<Property | undefined>(() =>
+    propertyId ? getPropertyBySlug(propertyId) : undefined
+  );
   const tourProgress = useTourProgress(propertyId ?? "", property?.rooms.length ?? 0);
+
+  // The property may have been created/edited on a different device — pull
+  // the latest from the shared backend so this tour doesn't show stale (or
+  // empty) data just because this browser never made that edit itself.
+  useEffect(() => {
+    let cancelled = false;
+    syncPropertiesFromBackend().then((synced) => {
+      if (!cancelled && synced && propertyId) setProperty(getPropertyBySlug(propertyId));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId]);
 
   if (!property) {
     const wasDeleted = propertyId ? isDeletedSeedSlug(propertyId) : false;

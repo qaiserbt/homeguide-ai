@@ -28,7 +28,7 @@ function corsHeaders(origin: string | null, env: Env): HeadersInit {
   const allowOrigin = origin && allowed.includes(origin) ? origin : allowed[0];
   return {
     "Access-Control-Allow-Origin": allowOrigin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Max-Age": "86400",
   };
@@ -379,6 +379,62 @@ async function handleSynthesizeSpeech(request: Request, env: Env, cors: HeadersI
   return json({ url: `${env.PUBLIC_BUCKET_URL}/${audioKey}`, words, cached: false }, 200, cors);
 }
 
+const MAX_PROPERTY_JSON_BYTES = 2 * 1024 * 1024; // 2MB
+const PROPERTY_KEY_PREFIX = "properties/";
+
+function propertyKey(id: string): string {
+  return `${PROPERTY_KEY_PREFIX}${id}.json`;
+}
+
+/**
+ * Properties are edited from whichever device the agent happens to be on
+ * (laptop today, phone tomorrow), so the property record — which room maps
+ * to which uploaded photo, price, description, etc. — has to live
+ * somewhere shared, not just in that one browser's localStorage. Reusing
+ * the existing PHOTOS bucket (a "properties/" prefix of JSON docs) avoids
+ * provisioning a separate database for what's still a handful of listings.
+ */
+async function handleListProperties(env: Env, cors: HeadersInit): Promise<Response> {
+  const listed = await env.PHOTOS.list({ prefix: PROPERTY_KEY_PREFIX });
+  const properties = await Promise.all(
+    listed.objects.map(async (obj) => {
+      const object = await env.PHOTOS.get(obj.key);
+      if (!object) return null;
+      try {
+        return await object.json();
+      } catch {
+        return null;
+      }
+    })
+  );
+  return json({ properties: properties.filter((p) => p !== null) }, 200, cors);
+}
+
+async function handleSaveProperty(request: Request, id: string, env: Env, cors: HeadersInit): Promise<Response> {
+  const raw = await request.text();
+  if (raw.length > MAX_PROPERTY_JSON_BYTES) {
+    return json({ error: "Property payload too large" }, 413, cors);
+  }
+  let property: unknown;
+  try {
+    property = JSON.parse(raw);
+  } catch {
+    return json({ error: "Expected a JSON property object" }, 400, cors);
+  }
+  if (!property || typeof property !== "object") {
+    return json({ error: "Expected a JSON property object" }, 400, cors);
+  }
+  await env.PHOTOS.put(propertyKey(id), JSON.stringify(property), {
+    httpMetadata: { contentType: "application/json" },
+  });
+  return json({ ok: true }, 200, cors);
+}
+
+async function handleDeleteProperty(id: string, env: Env, cors: HeadersInit): Promise<Response> {
+  await env.PHOTOS.delete(propertyKey(id));
+  return json({ ok: true }, 200, cors);
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const origin = request.headers.get("Origin");
@@ -405,7 +461,7 @@ export default {
     // Origin-header check only stops naive/browser-driven abuse, not a
     // determined attacker forging headers directly — real protection
     // requires admin authentication, which this app doesn't have yet.
-    if (request.method === "POST" && !isAllowedOrigin(origin, env)) {
+    if (["POST", "PUT", "DELETE"].includes(request.method) && !isAllowedOrigin(origin, env)) {
       return json({ error: "Origin not allowed" }, 403, cors);
     }
 
@@ -423,6 +479,18 @@ export default {
 
     if (url.pathname === "/synthesize-speech" && request.method === "POST") {
       return handleSynthesizeSpeech(request, env, cors);
+    }
+
+    if (url.pathname === "/properties" && request.method === "GET") {
+      return handleListProperties(env, cors);
+    }
+
+    const propertyMatch = url.pathname.match(/^\/properties\/([^/]+)$/);
+    if (propertyMatch && request.method === "PUT") {
+      return handleSaveProperty(request, decodeURIComponent(propertyMatch[1]), env, cors);
+    }
+    if (propertyMatch && request.method === "DELETE") {
+      return handleDeleteProperty(decodeURIComponent(propertyMatch[1]), env, cors);
     }
 
     return json({ error: "Not found" }, 404, cors);

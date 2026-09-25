@@ -5,10 +5,21 @@ import type { Property } from "../types/property";
 /**
  * Local persistence for properties created/edited in the admin dashboard.
  * Seed demo data (src/data/properties.ts) always renders unless overridden
- * here by id. Swap this file's internals for real API calls when a backend
- * exists — every caller already goes through this module, never through
- * data/properties.ts directly.
+ * here by id.
+ *
+ * Custom properties are cached in localStorage for instant synchronous
+ * reads (every caller here is called straight from render), but the
+ * localStorage copy alone isn't enough — it's per-browser, so a property
+ * edited/uploaded from one device (e.g. the agent's laptop) would show as
+ * empty demo placeholders on another (e.g. their phone, or a client's
+ * device). The Worker's /properties endpoint (backed by the same R2 bucket
+ * as photo uploads) is the actual source of truth; syncPropertiesFromBackend
+ * pulls it into the local cache, and saveProperty/deleteProperty push to it
+ * in the background so other devices pick up the change on their next sync.
  */
+const API_ORIGIN = (
+  import.meta.env.VITE_UPLOAD_API_URL ?? "https://homeguide-ai-uploads.fragrant-cake-acc5.workers.dev/upload"
+).replace(/\/upload$/, "");
 
 /**
  * There's one agent (Qaiser), not one-per-property, so every property
@@ -74,6 +85,16 @@ export function saveProperty(property: Property): void {
     custom.push(property);
   }
   writeCustom(custom);
+
+  // Push to the shared backend in the background so other devices see this
+  // edit too — the local write above already made it feel instant here.
+  fetch(`${API_ORIGIN}/properties/${encodeURIComponent(property.id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(property),
+  }).catch(() => {
+    /* offline or backend unreachable — local cache still has the edit */
+  });
 }
 
 export function deleteProperty(id: string): void {
@@ -88,6 +109,29 @@ export function deleteProperty(id: string): void {
         /* ignore */
       }
     }
+  }
+
+  fetch(`${API_ORIGIN}/properties/${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => {
+    /* offline or backend unreachable — local cache still reflects the delete */
+  });
+}
+
+/**
+ * Pulls the latest custom properties from the shared backend into the local
+ * cache. Callers that need cross-device freshness (the public tour, the
+ * admin properties list) call this on mount and re-render once it resolves;
+ * every getter here stays synchronous so this is opt-in, not required.
+ */
+export async function syncPropertiesFromBackend(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_ORIGIN}/properties`);
+    if (!res.ok) return false;
+    const data = (await res.json()) as { properties?: Property[] };
+    if (!Array.isArray(data.properties)) return false;
+    writeCustom(data.properties);
+    return true;
+  } catch {
+    return false;
   }
 }
 

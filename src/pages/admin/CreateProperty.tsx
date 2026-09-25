@@ -1,7 +1,7 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Check, Loader2 } from "lucide-react";
-import { getPropertyById, saveProperty } from "../../services/propertiesStore";
+import { getPropertyById, saveProperty, syncPropertiesFromBackend } from "../../services/propertiesStore";
 import { getAgentSettings } from "../../services/agentSettings";
 import type { Property } from "../../types/property";
 import { PropertyDetailsStep } from "../../components/admin/steps/PropertyDetailsStep";
@@ -75,6 +75,20 @@ export function CreateProperty() {
     return emptyDraft();
   });
   const [stepIndex, setStepIndex] = useState(0);
+
+  // If this property was created/edited on another device, this browser
+  // may have never seen it locally — pull it from the shared backend once,
+  // but only when we had nothing local to begin with, so an edit already
+  // in progress here never gets clobbered by a background sync.
+  useEffect(() => {
+    if (!propertyId || getPropertyById(propertyId)) return;
+    syncPropertiesFromBackend().then((synced) => {
+      if (!synced) return;
+      const found = getPropertyById(propertyId);
+      if (found) setDraft(found);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyId]);
 
   const update = (patch: Partial<Property>) => setDraft((prev) => ({ ...prev, ...patch }));
 
