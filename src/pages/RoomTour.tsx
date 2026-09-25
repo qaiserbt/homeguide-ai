@@ -5,7 +5,6 @@ import { useTourContext } from "../hooks/useTourContext";
 import { useNarration } from "../hooks/useNarration";
 import { AvatarGuide } from "../components/avatar/AvatarGuide";
 import { SmartImage } from "../components/shared/SmartImage";
-import { RoomFeatures } from "../components/tour/RoomFeatures";
 import { RoomSelector } from "../components/tour/RoomSelector";
 import { AudioControls } from "../components/tour/AudioControls";
 import type { AvatarState } from "../types/avatar";
@@ -109,8 +108,6 @@ export function RoomTour() {
             previousDisabled={!previousRoom}
             nextDisabled={!nextRoom}
           />
-
-          <RoomFeatures features={room.features} />
 
           <RoomSelector
             rooms={rooms}
