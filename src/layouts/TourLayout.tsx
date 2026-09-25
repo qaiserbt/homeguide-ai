@@ -28,48 +28,63 @@ export function TourLayout() {
   const [siteSettings, setSiteSettings] = useState(() => getSiteSettings());
   const tourProgress = useTourProgress(propertyId ?? "", property?.rooms.length ?? 0);
 
+  // Background music only ever plays alongside active narration (quietly,
+  // underneath it) — silent whenever narration is paused, stopped, or
+  // hasn't started. No dependency on narration state here; TourLayout
+  // below calls play()/pause() at the exact moments narration does, since
+  // starting audio needs to happen inside the same user gesture (a click)
+  // that started the narration.
+  const music = useBackgroundMusic(getActiveTrackUrl(siteSettings), siteSettings.backgroundMusicEnabled);
+
   // Narration lives here (tour-wide), not per-room, so that Previous/Next
   // Room and the room grid never cut off audio already playing — only an
   // explicit play/pause tap, or the narration finishing on its own, changes
   // what's playing. When a room finishes naturally, only auto-advance the
   // *view* to the next room if the visitor is still looking at the room
   // that just finished — if they've already moved on, leave their view
-  // alone and just let the background narration end quietly.
+  // alone and just let the background narration end quietly. Music keeps
+  // playing across that auto-advance (the next playRoom call below covers
+  // it); it only gets explicitly paused here when there's nothing left to
+  // auto-advance to, or when the visitor already moved on.
   const narration = useTourNarration((finishedRoomId) => {
-    if (!property) return;
+    if (!property) {
+      music.pause();
+      return;
+    }
     const viewedRoomMatch = location.pathname.match(/\/room\/([^/]+)/);
     const viewedRoomId = viewedRoomMatch ? decodeURIComponent(viewedRoomMatch[1]) : null;
-    if (viewedRoomId !== finishedRoomId) return;
+    if (viewedRoomId !== finishedRoomId) {
+      music.pause();
+      return;
+    }
     const rooms = [...property.rooms].sort((a, b) => a.order - b.order);
     const idx = rooms.findIndex((r) => r.id === finishedRoomId);
     const next = idx >= 0 && idx < rooms.length - 1 ? rooms[idx + 1] : undefined;
     if (next) {
       navigate(`/tour/${property.slug}/room/${next.id}`, { state: { autoplay: true }, replace: true });
+    } else {
+      music.pause();
     }
   });
 
-  // Background music sits under the narration, ducking whenever any room's
-  // narration is actively speaking so the voice guide stays clear.
-  const music = useBackgroundMusic(
-    getActiveTrackUrl(siteSettings),
-    siteSettings.backgroundMusicEnabled,
-    narration.isSpeaking && !narration.isPaused
-  );
-
-  // No separate mute button — music turns itself on the first time the
-  // visitor presses play on the narration (a real user gesture, which is
-  // what unmuting requires), then just keeps playing for the rest of the
-  // session. Every play/pause tap goes through these two functions, so
-  // wrapping them here covers every entry point (the big play button, the
-  // avatar tap, autoplay-on-room-entry).
+  // No separate mute button — music starts the first time the visitor
+  // presses play on the narration and pauses the instant they pause it.
+  // Every play/pause tap goes through these two functions, so wrapping
+  // them here covers every entry point (the big play button, the avatar
+  // tap, autoplay-on-room-entry).
   const narrationWithMusic: TourNarration = {
     ...narration,
     playRoom: (room) => {
-      music.ensureAudible();
+      music.play();
       narration.playRoom(room);
     },
     togglePlayPause: (room) => {
-      music.ensureAudible();
+      const isCurrentlyPlayingThisRoom = narration.activeRoomId === room.id && narration.isSpeaking && !narration.isPaused;
+      if (isCurrentlyPlayingThisRoom) {
+        music.pause();
+      } else {
+        music.play();
+      }
       narration.togglePlayPause(room);
     },
   };

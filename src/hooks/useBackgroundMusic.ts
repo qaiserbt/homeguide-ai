@@ -2,28 +2,25 @@ import { useEffect, useRef } from "react";
 
 export interface BackgroundMusic {
   available: boolean;
-  /** Unmutes and (re)starts playback if needed — safe to call every time,
-   * even when already audible. Call it from inside a real user gesture
-   * (a click handler), since unmuting requires one the first time. */
-  ensureAudible: () => void;
+  /** Starts (or resumes) the track — call this from inside a real user
+   * gesture (a click handler), since browsers only allow starting audio
+   * with sound as a direct result of one. */
+  play: () => void;
+  /** Pauses the track. Always safe to call — pausing never needs a gesture. */
+  pause: () => void;
 }
 
-const NORMAL_VOLUME = 0.22;
-const DUCKED_VOLUME = 0.06;
+const MUSIC_VOLUME = 0.15;
 
 /**
- * A single looping background track for the whole tour, independent of
- * which room is being viewed or narrated. Starts muted (browsers only
- * allow autoplay-with-sound inside a genuine user gesture) and stays that
- * way until `ensureAudible()` is called — the caller wires that into
- * whatever already counts as a user gesture (pressing Play on the
- * narration), so no separate mute toggle is needed. Once unmuted it just
- * keeps playing for the rest of the session.
- *
- * `duck` (true while any room's narration is actively speaking) lowers the
- * volume so the voice guide stays clearly audible over the music.
+ * A single looping background track, playing only while narration is
+ * actually speaking (quietly, under the voice) — silent the instant
+ * narration is paused, stopped, or hasn't started, so it never plays on
+ * its own. The caller (TourLayout) wires `play`/`pause` into the exact
+ * moments narration starts/stops, since that's the only reliable way to
+ * stay inside the user-gesture window autoplay requires.
  */
-export function useBackgroundMusic(url: string | null, enabled: boolean, duck: boolean): BackgroundMusic {
+export function useBackgroundMusic(url: string | null, enabled: boolean): BackgroundMusic {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -34,28 +31,23 @@ export function useBackgroundMusic(url: string | null, enabled: boolean, duck: b
     }
     const audio = new Audio(url);
     audio.loop = true;
-    audio.muted = true;
-    audio.volume = NORMAL_VOLUME;
+    audio.volume = MUSIC_VOLUME;
     audioRef.current = audio;
-    audio.play().catch(() => {
-      /* even muted autoplay can occasionally be blocked — ensureAudible still works once the user interacts */
-    });
     return () => {
       audio.pause();
       audioRef.current = null;
     };
   }, [url, enabled]);
 
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = duck ? DUCKED_VOLUME : NORMAL_VOLUME;
-  }, [duck]);
-
-  const ensureAudible = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (audio.muted) audio.muted = false;
-    if (audio.paused) audio.play().catch(() => {});
+  const play = () => {
+    audioRef.current?.play().catch(() => {
+      /* blocked (e.g. this wasn't actually inside a gesture) — narration still plays fine either way */
+    });
   };
 
-  return { available: Boolean(enabled && url), ensureAudible };
+  const pause = () => {
+    audioRef.current?.pause();
+  };
+
+  return { available: Boolean(enabled && url), play, pause };
 }
