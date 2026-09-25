@@ -272,7 +272,7 @@ export const properties: Property[] = [
       name: "Qaiser Butt",
       title: "REALTOR®",
       brokerage: "Royal LePage Certified Realty",
-      phone: "+1 (555) 010-2030",
+      phone: "+1 (416) 936-8537",
       email: "info@qaiserbutt.ca",
       photo: "/logos/agent-placeholder.svg",
       website: "https://qaiserbutt.ca",
