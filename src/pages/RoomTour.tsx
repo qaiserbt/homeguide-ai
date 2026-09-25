@@ -93,6 +93,7 @@ export function RoomTour() {
                 position="inline"
                 isSpeaking={narration.isSpeaking && !narration.isPaused}
                 message={room.narration}
+                hideMessageText
                 onToggleAudio={narration.togglePlayPause}
               />
             </div>
