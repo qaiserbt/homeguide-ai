@@ -66,9 +66,9 @@ export function RoomTour() {
           className="absolute inset-0 animate-fade-in"
           priority
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-navy/30 via-transparent to-navy/40" />
-        {/* stronger scrim behind the bottom control stack so it stays legible over any photo */}
-        <div className="absolute inset-x-0 bottom-0 h-[65%] bg-gradient-to-t from-navy/95 via-navy/55 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-navy/10 via-transparent to-navy/20" />
+        {/* light scrim, just enough for the white control text to stay legible */}
+        <div className="absolute inset-x-0 bottom-0 h-[32%] bg-gradient-to-t from-navy/60 via-navy/15 to-transparent" />
 
         {/* header */}
         <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-6">

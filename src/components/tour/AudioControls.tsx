@@ -23,7 +23,7 @@ export function AudioControls({
         type="button"
         onClick={onPrevious}
         disabled={previousDisabled}
-        className="flex items-center gap-1.5 rounded-full px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10 disabled:pointer-events-none disabled:opacity-30"
+        className="flex items-center gap-1.5 rounded-full bg-navy/40 px-4 py-3 text-sm font-medium text-white backdrop-blur-md transition-colors hover:bg-navy/55 disabled:pointer-events-none disabled:opacity-30"
       >
         <ChevronLeft className="h-4 w-4" />
         Previous
@@ -43,7 +43,7 @@ export function AudioControls({
         type="button"
         onClick={onNext}
         disabled={nextDisabled}
-        className="flex items-center gap-1.5 rounded-full px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10 disabled:pointer-events-none disabled:opacity-30"
+        className="flex items-center gap-1.5 rounded-full bg-navy/40 px-4 py-3 text-sm font-medium text-white backdrop-blur-md transition-colors hover:bg-navy/55 disabled:pointer-events-none disabled:opacity-30"
       >
         Next Room
         <ChevronRight className="h-4 w-4" />
