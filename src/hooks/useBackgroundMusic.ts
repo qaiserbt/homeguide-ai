@@ -10,7 +10,7 @@ export interface BackgroundMusic {
   pause: () => void;
 }
 
-const MUSIC_VOLUME = 0.15;
+const MUSIC_VOLUME = 0.08;
 
 /**
  * A single looping background track, playing only while narration is
