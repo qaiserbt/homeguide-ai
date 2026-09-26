@@ -23,7 +23,19 @@ export function isSpeechSupported(): boolean {
   return supported();
 }
 
-let currentAudio: HTMLAudioElement | null = null;
+// A single, reused <audio> element for the whole session rather than a new
+// Audio() per line. iOS Safari only allows autoplay-with-sound on an
+// element that's already been "unlocked" by a prior gesture-triggered
+// play() — reassigning .src on that same element and calling .play() again
+// later (e.g. from the auto-advance timer, with no fresh gesture) still
+// works, but a brand-new Audio() instance in that same spot gets silently
+// blocked. The very first speak() call (from the user's own tap) unlocks
+// this element for the rest of the session.
+let sharedAudio: HTMLAudioElement | null = null;
+function getSharedAudio(): HTMLAudioElement {
+  if (!sharedAudio) sharedAudio = new Audio();
+  return sharedAudio;
+}
 
 // Fetching + resolving the audio is async, so a stop() or a newer speak()
 // call can land while an earlier one is still in flight. Each speak() call
@@ -65,11 +77,9 @@ export function speak(text: string, onEnd?: EndListener, onWords?: WordsListener
   if (!supported() || !text.trim()) return;
 
   const myToken = ++speakToken;
-
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio = null;
-  }
+  const audio = getSharedAudio();
+  audio.pause();
+  audio.onended = null;
 
   resolveAudio(text)
     .then(({ url, words }) => {
@@ -77,14 +87,15 @@ export function speak(text: string, onEnd?: EndListener, onWords?: WordsListener
 
       onWords?.(words);
 
-      const audio = new Audio(url);
+      audio.src = url;
       audio.onended = () => {
         if (myToken === speakToken) onEnd?.();
       };
-      currentAudio = audio;
-      // Autoplay can be blocked without a recent user gesture (e.g. the
-      // auto-advance chain calling this from a timer) — fail silently
-      // rather than throw; the UI's play/pause state just won't progress.
+      // Autoplay-with-sound on a brand-new element would be blocked without
+      // a recent user gesture (e.g. the auto-advance chain calling this
+      // from a timer) — reusing the one shared, already-unlocked element is
+      // what makes this succeed anyway. Still fails silently rather than
+      // throwing on the rare case it doesn't.
       audio.play().catch(() => {});
     })
     .catch(() => {
@@ -94,30 +105,30 @@ export function speak(text: string, onEnd?: EndListener, onWords?: WordsListener
 }
 
 export function pause(): void {
-  currentAudio?.pause();
+  sharedAudio?.pause();
 }
 
 export function resume(): void {
-  currentAudio?.play().catch(() => {});
+  sharedAudio?.play().catch(() => {});
 }
 
 export function stop(): void {
   speakToken++;
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio = null;
+  if (sharedAudio) {
+    sharedAudio.pause();
+    sharedAudio.onended = null;
   }
 }
 
 export function isSpeaking(): boolean {
-  return Boolean(currentAudio && !currentAudio.paused && !currentAudio.ended);
+  return Boolean(sharedAudio && sharedAudio.src && !sharedAudio.paused && !sharedAudio.ended);
 }
 
 export function isPaused(): boolean {
-  return Boolean(currentAudio && currentAudio.paused && !currentAudio.ended);
+  return Boolean(sharedAudio && sharedAudio.src && sharedAudio.paused && !sharedAudio.ended);
 }
 
 /** Current playback position in seconds — used to sync captions to speech. */
 export function getCurrentTime(): number {
-  return currentAudio?.currentTime ?? 0;
+  return sharedAudio?.currentTime ?? 0;
 }
