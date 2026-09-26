@@ -98,7 +98,7 @@ export function RoomTour() {
               target="_blank"
               rel="noreferrer"
               aria-label="Chat on WhatsApp"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#25D366] text-white shadow-md transition-colors hover:bg-[#20bd5a]"
+              className="animate-float flex h-10 w-10 items-center justify-center rounded-full bg-[#25D366] text-white shadow-md transition-colors hover:bg-[#20bd5a]"
             >
               <WhatsAppIcon className="h-5 w-5" />
             </a>
