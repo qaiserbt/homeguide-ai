@@ -10,7 +10,7 @@ import { whatsAppHref } from "../utils/contactLinks";
 import type { AvatarState } from "../types/avatar";
 import type { Room } from "../types/property";
 
-const CROSSFADE_MS = 650;
+const CROSSFADE_MS = 1100;
 
 export function RoomTour() {
   const { property, tourProgress, narration, openContact } = useTourContext();
@@ -92,7 +92,7 @@ export function RoomTour() {
             alt={outgoingRoom.name}
             label={outgoingRoom.name}
             roomType={outgoingRoom.type}
-            className="absolute inset-0 animate-fade-out"
+            className="absolute inset-0 animate-photo-fade-out"
             imgClassName="animate-ken-burns"
           />
         )}
@@ -102,7 +102,7 @@ export function RoomTour() {
           alt={room.name}
           label={room.name}
           roomType={room.type}
-          className="absolute inset-0 animate-fade-in"
+          className="absolute inset-0 animate-photo-fade-in"
           imgClassName="animate-ken-burns"
           priority
         />
