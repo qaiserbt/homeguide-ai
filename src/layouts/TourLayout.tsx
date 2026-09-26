@@ -37,12 +37,14 @@ export function TourLayout() {
   const [siteSettings, setSiteSettings] = useState(() => getSiteSettings());
   const tourProgress = useTourProgress(propertyId ?? "", property?.rooms.length ?? 0);
 
-  // Background music only ever plays alongside active narration (quietly,
-  // underneath it) — silent whenever narration is paused, stopped, or
-  // hasn't started. No dependency on narration state here; TourLayout
-  // below calls play()/pause() at the exact moments narration does, since
-  // starting audio needs to happen inside the same user gesture (a click)
-  // that started the narration.
+  // Background music starts on the visitor's first play tap and then just
+  // keeps going continuously for the rest of the session — including
+  // through the quiet breathing gap between rooms on auto-advance, so only
+  // the voice pauses there, not the music. It only stops when the visitor
+  // explicitly taps pause (see narrationWithMusic.togglePlayPause below),
+  // never automatically. No dependency on narration state here; play()
+  // still has to happen inside the same user gesture (a click) that starts
+  // the narration, the first time.
   const music = useBackgroundMusic(getActiveTrackUrl(siteSettings), siteSettings.backgroundMusicEnabled);
 
   // Read inside the delayed callback below instead of closing over
@@ -63,25 +65,17 @@ export function TourLayout() {
   // effect (which would start it instantly) and calls playRoom directly
   // once the break has elapsed.
   const narration = useTourNarration((finishedRoomId) => {
-    if (!property) {
-      music.pause();
-      return;
-    }
+    if (!property) return;
     const viewedRoomMatch = location.pathname.match(/\/room\/([^/]+)/);
     const viewedRoomId = viewedRoomMatch ? decodeURIComponent(viewedRoomMatch[1]) : null;
-    if (viewedRoomId !== finishedRoomId) {
-      music.pause();
-      return;
-    }
+    if (viewedRoomId !== finishedRoomId) return;
     const rooms = [...property.rooms].sort((a, b) => a.order - b.order);
     const idx = rooms.findIndex((r) => r.id === finishedRoomId);
     const next = idx >= 0 && idx < rooms.length - 1 ? rooms[idx + 1] : undefined;
-    music.pause();
     if (!next) return;
     navigate(`/tour/${property.slug}/room/${next.id}`, { replace: true });
     window.setTimeout(() => {
       if (!mountedRef.current) return;
-      music.play();
       playRoomRef.current?.(next);
     }, ROOM_TRANSITION_BREAK_MS);
   });
