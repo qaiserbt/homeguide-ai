@@ -71,6 +71,7 @@ export function RoomTour() {
           label={room.name}
           roomType={room.type}
           className="absolute inset-0 animate-fade-in"
+          imgClassName="animate-ken-burns"
           priority
         />
         <div className="absolute inset-0 bg-gradient-to-t from-navy/10 via-transparent to-navy/20" />
