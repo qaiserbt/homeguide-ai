@@ -28,9 +28,12 @@ export function RoomTour() {
   const isThisRoomActive = narration.activeRoomId === room?.id;
   const isSpeakingThisRoom = isThisRoomActive && narration.isSpeaking && !narration.isPaused;
 
-  // Carried from TourLayout's onRoomNaturallyFinished, which only navigates
-  // here (with autoplay) if the visitor was still looking at the room that
-  // just finished — so this is the deliberate "keep the guided tour going".
+  // Manual Previous/Next/grid navigation carries this when narration was
+  // actively playing for the room just left, so it switches instantly to
+  // narrate whichever room is now being viewed instead of leaving it
+  // silent. (Auto-advance after narration finishes naturally is handled
+  // directly in TourLayout instead, with a short pause before it starts —
+  // it doesn't go through this.)
   const shouldAutoplay = Boolean((location.state as { autoplay?: boolean } | null)?.autoplay);
 
   useEffect(() => {
@@ -123,8 +126,17 @@ export function RoomTour() {
           <AudioControls
             isPlaying={isSpeakingThisRoom}
             onTogglePlay={() => narration.togglePlayPause(room)}
-            onPrevious={previousRoom ? () => navigate(`/tour/${property.slug}/room/${previousRoom.id}`) : undefined}
-            onNext={nextRoom ? () => navigate(`/tour/${property.slug}/room/${nextRoom.id}`) : undefined}
+            onPrevious={
+              previousRoom
+                ? () =>
+                    navigate(`/tour/${property.slug}/room/${previousRoom.id}`, { state: { autoplay: isSpeakingThisRoom } })
+                : undefined
+            }
+            onNext={
+              nextRoom
+                ? () => navigate(`/tour/${property.slug}/room/${nextRoom.id}`, { state: { autoplay: isSpeakingThisRoom } })
+                : undefined
+            }
             previousDisabled={!previousRoom}
             nextDisabled={!nextRoom}
           />
@@ -170,6 +182,7 @@ export function RoomTour() {
               <Link
                 key={r.id}
                 to={`/tour/${property.slug}/room/${r.id}`}
+                state={{ autoplay: isSpeakingThisRoom }}
                 onClick={() => setGridOpen(false)}
                 className={`relative overflow-hidden rounded-xl border-2 ${
                   r.id === room.id ? "border-gold" : "border-transparent"
