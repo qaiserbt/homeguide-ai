@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, useParams, useLocation, Link, useNavigate } from "react-router-dom";
 import { Home } from "lucide-react";
 import { getPropertyBySlug, isDeletedSeedSlug, restoreSeedBySlug, syncPropertiesFromBackend } from "../services/propertiesStore";
@@ -17,20 +17,11 @@ export interface TourOutletContext {
   openContact: () => void;
 }
 
-const ROOM_TRANSITION_BREAK_MS = 1400;
-
 export function TourLayout() {
   const { propertyId } = useParams<{ propertyId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const [contactOpen, setContactOpen] = useState(false);
-  const mountedRef = useRef(true);
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
   const [property, setProperty] = useState<Property | undefined>(() =>
     propertyId ? getPropertyBySlug(propertyId) : undefined
   );
@@ -39,18 +30,13 @@ export function TourLayout() {
 
   // Background music starts on the visitor's first play tap and then just
   // keeps going continuously for the rest of the session — including
-  // through the quiet breathing gap between rooms on auto-advance, so only
-  // the voice pauses there, not the music. It only stops when the visitor
-  // explicitly taps pause (see narrationWithMusic.togglePlayPause below),
-  // never automatically. No dependency on narration state here; play()
-  // still has to happen inside the same user gesture (a click) that starts
-  // the narration, the first time.
+  // through room-to-room transitions, so only the voice pauses/resumes
+  // there, not the music. It only stops when the visitor explicitly taps
+  // pause (see narrationWithMusic.togglePlayPause below), never
+  // automatically. No dependency on narration state here; play() still has
+  // to happen inside the same user gesture (a click) that starts the
+  // narration, the first time.
   const music = useBackgroundMusic(getActiveTrackUrl(siteSettings), siteSettings.backgroundMusicEnabled);
-
-  // Read inside the delayed callback below instead of closing over
-  // `narration` directly — that binding isn't initialized until
-  // useTourNarration returns, and this callback is one of its arguments.
-  const playRoomRef = useRef<TourNarration["playRoom"] | null>(null);
 
   // Narration lives here (tour-wide), not per-room, so that Previous/Next
   // Room and the room grid never cut off audio already playing — only an
@@ -58,12 +44,11 @@ export function TourLayout() {
   // what's playing. When a room finishes naturally, only auto-advance the
   // *view* to the next room if the visitor is still looking at the room
   // that just finished — if they've already moved on, leave their view
-  // alone and just let the background narration end quietly. The frame
-  // changes to the next room right away, but narration for it only starts
-  // after a short quiet break — a breathing gap between rooms instead of
-  // one continuous monologue — so this bypasses RoomTour's own autoplay
-  // effect (which would start it instantly) and calls playRoom directly
-  // once the break has elapsed.
+  // alone and just let the background narration end quietly. The next
+  // room's narration starts in the very same navigation as the view change
+  // (via the `autoplay` route state RoomTour's own effect reads) — the same
+  // path Previous/Next already uses — so auto-advance feels identical to a
+  // manual tap instead of a separate, slower transition.
   const narration = useTourNarration((finishedRoomId) => {
     if (!property) return;
     const viewedRoomMatch = location.pathname.match(/\/room\/([^/]+)/);
@@ -73,15 +58,7 @@ export function TourLayout() {
     const idx = rooms.findIndex((r) => r.id === finishedRoomId);
     const next = idx >= 0 && idx < rooms.length - 1 ? rooms[idx + 1] : undefined;
     if (!next) return;
-    navigate(`/tour/${property.slug}/room/${next.id}`, { replace: true });
-    window.setTimeout(() => {
-      if (!mountedRef.current) return;
-      playRoomRef.current?.(next);
-    }, ROOM_TRANSITION_BREAK_MS);
-  });
-
-  useEffect(() => {
-    playRoomRef.current = narration.playRoom;
+    navigate(`/tour/${property.slug}/room/${next.id}`, { replace: true, state: { autoplay: true } });
   });
 
   // No separate mute button — music starts the first time the visitor
