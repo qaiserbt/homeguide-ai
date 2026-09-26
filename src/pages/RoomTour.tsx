@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Grid3x3, X } from "lucide-react";
 import { useTourContext } from "../hooks/useTourContext";
@@ -8,6 +8,9 @@ import { AudioControls } from "../components/tour/AudioControls";
 import { WhatsAppIcon } from "../components/shared/WhatsAppIcon";
 import { whatsAppHref } from "../utils/contactLinks";
 import type { AvatarState } from "../types/avatar";
+import type { Room } from "../types/property";
+
+const CROSSFADE_MS = 650;
 
 export function RoomTour() {
   const { property, tourProgress, narration, openContact } = useTourContext();
@@ -51,6 +54,24 @@ export function RoomTour() {
     img.src = nextRoom.image;
   }, [nextRoom]);
 
+  // Crossfades the previous room's photo out while the new one fades in,
+  // instead of an abrupt cut — the outgoing photo keeps rendering
+  // (fading out, still gently zooming) for a moment behind the incoming one.
+  const [outgoingRoom, setOutgoingRoom] = useState<Room | null>(null);
+  const previousRoomIdRef = useRef<string | undefined>(room?.id);
+
+  useEffect(() => {
+    const previousId = previousRoomIdRef.current;
+    previousRoomIdRef.current = room?.id;
+    if (!room || !previousId || previousId === room.id) return;
+    const left = rooms.find((r) => r.id === previousId);
+    if (!left) return;
+    setOutgoingRoom(left);
+    const timer = window.setTimeout(() => setOutgoingRoom(null), CROSSFADE_MS);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.id]);
+
   if (!room) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-6 text-center text-text-secondary">
@@ -64,6 +85,17 @@ export function RoomTour() {
   return (
     <div className="lg:mx-auto lg:max-w-4xl lg:py-8">
       <div className="relative h-[calc(100dvh-5rem)] min-h-[600px] w-full overflow-hidden lg:h-[85vh] lg:rounded-[2rem]">
+        {outgoingRoom && (
+          <SmartImage
+            key={`outgoing-${outgoingRoom.id}`}
+            src={outgoingRoom.image}
+            alt={outgoingRoom.name}
+            label={outgoingRoom.name}
+            roomType={outgoingRoom.type}
+            className="absolute inset-0 animate-fade-out"
+            imgClassName="animate-ken-burns"
+          />
+        )}
         <SmartImage
           key={room.id}
           src={room.image}
