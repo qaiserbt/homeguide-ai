@@ -93,15 +93,6 @@ export function RoomTour() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <a
-              href={whatsAppHref(property.agent, `${property.address}, ${property.city}`)}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Chat on WhatsApp"
-              className="animate-float flex h-10 w-10 items-center justify-center rounded-full bg-[#25D366] text-white shadow-md transition-colors hover:bg-[#20bd5a]"
-            >
-              <WhatsAppIcon className="h-5 w-5" />
-            </a>
             <button
               type="button"
               onClick={() => setGridOpen(true)}
@@ -121,7 +112,18 @@ export function RoomTour() {
             </p>
           )}
 
-          <AvatarGuide state={avatarState} size="md" position="inline" isSpeaking={isSpeakingThisRoom} />
+          <div className="relative inline-block">
+            <AvatarGuide state={avatarState} size="md" position="inline" isSpeaking={isSpeakingThisRoom} />
+            <a
+              href={whatsAppHref(property.agent, `${property.address}, ${property.city}`)}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Chat on WhatsApp"
+              className="animate-float absolute -right-1 -top-1 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-[#25D366] text-white shadow-md ring-2 ring-white transition-colors hover:bg-[#20bd5a]"
+            >
+              <WhatsAppIcon className="h-4 w-4" />
+            </a>
+          </div>
 
           <AudioControls
             isPlaying={isSpeakingThisRoom}
